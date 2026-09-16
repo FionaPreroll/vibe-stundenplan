@@ -21,17 +21,28 @@
       </select>
     </div>
     <div class="app-actions">
-      <button id="exportBtn" class="btn btn-secondary" data-i18n="exportBtn"></button>
-      <button id="importBtn" class="btn btn-secondary" data-i18n="importBtn"></button>
-      <input type="file" id="importFileInput" accept="application/json,.json" hidden />
-      <button id="timePresetBtn" class="btn btn-secondary" data-i18n="timePresetBtn"></button>
-      <button id="addRowBtn" class="btn" data-i18n="addRowBtn"></button>
-      <button id="resetBtn" class="btn btn-secondary" data-i18n="resetBtn"></button>
-      <button id="printBtn" class="btn btn-secondary" type="button" data-i18n="printBtn"></button>
-      <label class="edit-icons-toggle">
-        <input type="checkbox" id="editIconsToggle" checked />
-        <span data-i18n="editIconsToggleLabel"></span>
-      </label>
+      <div class="action-group">
+        <span class="action-group-label" data-i18n="toolbarGroupData"></span>
+        <button id="exportBtn" class="btn btn-secondary" data-i18n="exportBtn"></button>
+        <button id="importBtn" class="btn btn-secondary" data-i18n="importBtn"></button>
+        <input type="file" id="importFileInput" accept="application/json,.json" hidden />
+      </div>
+      <div class="action-group">
+        <span class="action-group-label" data-i18n="toolbarGroupGrid"></span>
+        <button id="timePresetBtn" class="btn btn-secondary" data-i18n="timePresetBtn"></button>
+        <button id="addRowBtn" class="btn btn-secondary" data-i18n="addRowBtn"></button>
+      </div>
+      <div class="action-group">
+        <span class="action-group-label" data-i18n="toolbarGroupView"></span>
+        <button id="printBtn" class="btn btn-secondary" type="button" data-i18n="printBtn"></button>
+        <label class="edit-icons-toggle">
+          <input type="checkbox" id="editIconsToggle" checked />
+          <span data-i18n="editIconsToggleLabel"></span>
+        </label>
+      </div>
+      <div class="action-group reset-group">
+        <button id="resetBtn" class="btn btn-danger-outline" data-i18n="resetBtn"></button>
+      </div>
     </div>
   </header>
 

@@ -120,7 +120,40 @@ body {
 .app-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+/* Groups the toolbar by what an action does (data, grid setup, view) instead
+   of one flat row of equally-weighted buttons. The border sits on the group
+   itself rather than a standalone divider element, so a flex-wrap break
+   never strands a lone separator line on its own row. */
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+}
+
+.action-group:not(:last-of-type) {
+  padding-right: 20px;
+  border-right: 1px solid var(--border);
+}
+
+.action-group-label {
+  width: 100%;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Pushed away from the rest of the toolbar and visually distinct (outline,
+   not a filled button) so "Reset" doesn't read as just another secondary
+   action next to Export/Print. */
+.reset-group {
+  margin-left: auto;
 }
 
 .hint-text {
@@ -156,6 +189,16 @@ body {
 .btn-danger {
   background: var(--danger);
   color: white;
+}
+
+.btn-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid rgba(224, 71, 62, 0.45);
+}
+
+.btn-danger-outline:hover {
+  background: rgba(224, 71, 62, 0.08);
 }
 
 .edit-icons-toggle {

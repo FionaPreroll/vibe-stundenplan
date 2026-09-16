@@ -395,6 +395,38 @@ Anwenden eines Presets/Rasters:
   als zusätzliches Sicherheitsnetz für den Fall, dass selbst das nicht reicht) statt
   abgeschnitten zu werden.
 
+### 19. Gruppierte Header-Toolbar
+
+- **Anlass:** Die Aktionsleiste im Header war mit jedem Feature dieser Session linear
+  gewachsen (zuletzt Drucken, Bearbeitungssymbole-Toggle) — sechs Buttons plus ein Toggle
+  standen gleichrangig in einer Reihe, ohne dass sich anschaut, was zusammengehört und was
+  gefährlich ist (siehe UI-Review, das dieser Änderung voranging).
+- **Gruppierung statt flacher Reihe:** Die Buttons sind in drei beschriftete Gruppen
+  aufgeteilt (`.action-group` mit `.action-group-label`): "Daten" (Exportieren, Importieren),
+  "Raster" (Zeiten festlegen, + Zeile hinzufügen), "Ansicht" (Drucken, Bearbeitungssymbole
+  anzeigen). Die Gruppen-Beschriftungen sind übersetzte UI-Strings
+  (`toolbarGroupData`/`toolbarGroupGrid`/`toolbarGroupView`), keine Termin-/Nutzerdaten.
+  Die Trennlinie zwischen Gruppen sitzt als `border-right` auf der Gruppe selbst statt als
+  eigenständiges Trenner-Element — sonst bliebe bei einem Zeilenumbruch (schmaler Bildschirm)
+  eine einzelne Trennlinie ohne zugehörige Gruppe hängen.
+- **"Zurücksetzen" ist bewusst kein `.btn-secondary` mehr.** Als einzige destruktive,
+  nicht umkehrbare Aktion der Leiste (nur durch einen `confirm()`-Dialog abgesichert) bekommt
+  sie eine eigene, gruppenlose Position rechts außen (`margin-left: auto`) und eine neue
+  Umriss-Stilklasse `.btn-danger-outline` (Gefahrenfarbe als Rahmen/Text statt als
+  Vollflächen-Rot) — auffällig genug, um nicht mit einem normalen Sekundär-Button verwechselt
+  zu werden, aber zurückhaltender als ein alarmierender roter Block.
+- **"+ Zeile hinzufügen" ist nicht mehr der einzige Primär-Button** (vorher einzige
+  `.btn`-Instanz mit Akzentfarbe, jetzt `.btn-secondary` wie die anderen Raster-/Daten-
+  Aktionen): Keine dieser Toolbar-Aktionen wird im Alltag sehr häufig gebraucht — der übliche
+  Weg, einen Termin anzulegen, ist der Klick auf eine Zelle, nicht ein Toolbar-Button. Eine
+  optische Hervorhebung gerade dieser einen Aktion war willkürlich.
+- **Bewusst nicht umgesetzt:** ein Overflow-/"Mehr"-Menü für die Aktionen. Bei sechs Aktionen
+  in drei Gruppen lohnt sich das (noch) nicht — das würde nur Entdeckbarkeit kosten. Kommt
+  relevant, sobald deutlich mehr, seltener genutzte Aktionen dazukommen. Ebenso bewusst nicht
+  umgesetzt: eine echte Icon-Toolbar (Buttons durch Icons+Tooltips ersetzen) — das braucht ein
+  konsistentes, eigenes Icon-Set statt der bestehenden Emoji-Icons (`+`/`🗑`/`🖨`) und ist eine
+  eigene, spätere Entscheidung, kein Nebenprodukt dieses Umbaus.
+
 ## Bewusste Nicht-Ziele (damit sie in einem Rewrite nicht versehentlich neu diskutiert werden)
 
 - Kein Build-Tooling (Webpack/Vite/Bundler) für die App — bewusst bei reinen, direkt
