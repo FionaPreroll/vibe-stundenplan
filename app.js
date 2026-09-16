@@ -1,14 +1,18 @@
 import {
   cellKey,
   generateRasterTimes,
+  parseTimeToMinutes,
   TIME_PRESETS,
   computeEntryUpdate,
+  computeSubRangeInset,
   mergeTimes,
   requiredRowCount,
   getEntrySpan,
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  rowHasEntries,
+  removeRow,
 } from "./logic.js";
 import { serializePlan, parsePlanImport } from "./io.js";
 import {
@@ -26,6 +30,7 @@ import {
 
 (() => {
   const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
 
   let store = loadStore(window.localStorage);
 
@@ -43,19 +48,21 @@ import {
   const importFileInput = document.getElementById("importFileInput");
 
   const modalOverlay = document.getElementById("modalOverlay");
+  const entryForm = document.getElementById("entryForm");
   const modalTitleHeading = document.getElementById("modalTitleHeading");
   const modalRangeInfo = document.getElementById("modalRangeInfo");
   const fieldTitle = document.getElementById("fieldTitle");
+  const fieldStartTime = document.getElementById("fieldStartTime");
+  const fieldEndTime = document.getElementById("fieldEndTime");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
-  const saveEntryBtn = document.getElementById("saveEntryBtn");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
 
   const timePresetBtn = document.getElementById("timePresetBtn");
   const timeModalOverlay = document.getElementById("timeModalOverlay");
+  const timeForm = document.getElementById("timeForm");
   const cancelTimeModalBtn = document.getElementById("cancelTimeModalBtn");
-  const applyRasterBtn = document.getElementById("applyRasterBtn");
   const rasterInterval = document.getElementById("rasterInterval");
   const rasterStart = document.getElementById("rasterStart");
   const rasterEnd = document.getElementById("rasterEnd");
@@ -114,6 +121,7 @@ import {
 
       const timeTd = document.createElement("td");
       timeTd.className = "time-cell";
+
       const timeInput = document.createElement("input");
       timeInput.type = "text";
       timeInput.className = "time-input";
@@ -124,6 +132,16 @@ import {
         persist();
       });
       timeTd.appendChild(timeInput);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "row-remove-btn";
+      removeBtn.title = "Zeile entfernen";
+      removeBtn.setAttribute("aria-label", "Zeile entfernen");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => removeRowAt(row));
+      timeTd.appendChild(removeBtn);
+
       tr.appendChild(timeTd);
 
       DAYS.forEach((day) => {
@@ -136,7 +154,9 @@ import {
         td.dataset.row = String(row);
         td.dataset.day = day;
         if (info.span > 1) td.rowSpan = info.span;
-        renderCellContent(td, info.entry);
+
+        const rowLabels = p.times.slice(row, row + info.span);
+        renderCellContent(td, info.entry, rowLabels, info.span);
         wireCellSelection(td, row, day);
         tr.appendChild(td);
       });
@@ -145,10 +165,28 @@ import {
     }
   }
 
-  function renderCellContent(td, entry) {
+  function renderCellContent(td, entry, rowLabels, span) {
     td.innerHTML = "";
+    td.style.paddingTop = "";
+    td.style.paddingBottom = "";
+
     if (entry && entry.title) {
       td.classList.add("filled");
+
+      if (entry.startTime || entry.endTime) {
+        const badge = document.createElement("p");
+        badge.className = "entry-time-badge";
+        badge.textContent = `${entry.startTime || "?"}–${entry.endTime || "?"}`;
+        td.appendChild(badge);
+
+        const inset = computeSubRangeInset(rowLabels, entry.startTime, entry.endTime);
+        if (inset) {
+          const totalHeight = ROW_HEIGHT_PX * span;
+          td.style.paddingTop = `${Math.round(totalHeight * inset.topFraction) + 8}px`;
+          td.style.paddingBottom = `${Math.round(totalHeight * inset.bottomFraction) + 8}px`;
+        }
+      }
+
       const title = document.createElement("p");
       title.className = "entry-title";
       title.textContent = entry.title;
@@ -272,6 +310,8 @@ import {
   function openEntryModal({ day, rowStart, rowEnd, isNewRange, entry }) {
     activeSelection = { day, rowStart, rowEnd, isNewRange };
     fieldTitle.value = entry?.title || "";
+    fieldStartTime.value = entry?.startTime || "";
+    fieldEndTime.value = entry?.endTime || "";
     fieldDescription.value = entry?.description || "";
     fieldLink.value = entry?.link || "";
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
@@ -290,7 +330,13 @@ import {
     if (!activeSelection) return;
     const { day, rowStart, rowEnd, isNewRange } = activeSelection;
     const p = plan();
-    const update = computeEntryUpdate(fieldTitle.value, fieldDescription.value, fieldLink.value);
+    const update = computeEntryUpdate(
+      fieldTitle.value,
+      fieldDescription.value,
+      fieldLink.value,
+      fieldStartTime.value,
+      fieldEndTime.value
+    );
     const anchorKey = cellKey(rowStart, day);
 
     if (isNewRange) {
@@ -322,6 +368,7 @@ import {
 
   function openTimeModal() {
     timeModalOverlay.classList.remove("hidden");
+    setTimeout(() => rasterInterval.focus(), 0);
   }
 
   function closeTimeModal() {
@@ -348,6 +395,23 @@ import {
 
   function addRow() {
     plan().rowCount += 1;
+    persist();
+    renderBody();
+  }
+
+  function removeRowAt(rowIndex) {
+    const p = plan();
+    if (p.rowCount <= 0) return;
+
+    if (rowHasEntries(rowIndex, DAYS, p.entries)) {
+      const ok = confirm("Diese Zeile enthält Termine. Beim Entfernen gehen sie verloren. Fortfahren?");
+      if (!ok) return;
+    }
+
+    const result = removeRow(rowIndex, p.rowCount, p.times, p.entries);
+    p.rowCount = result.rowCount;
+    p.times = result.times;
+    p.entries = result.entries;
     persist();
     renderBody();
   }
@@ -423,11 +487,14 @@ import {
 
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
-  saveEntryBtn.addEventListener("click", saveEntry);
   deleteEntryBtn.addEventListener("click", deleteEntry);
   cancelModalBtn.addEventListener("click", closeModal);
   modalOverlay.addEventListener("click", (e) => {
     if (e.target === modalOverlay) closeModal();
+  });
+  entryForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveEntry();
   });
 
   timePresetBtn.addEventListener("click", openTimeModal);
@@ -441,9 +508,15 @@ import {
       if (preset) applyTimes(preset.times);
     });
   });
-  applyRasterBtn.addEventListener("click", () => {
+  timeForm.addEventListener("submit", (e) => {
+    e.preventDefault();
     try {
-      const times = generateRasterTimes(rasterInterval.value, rasterStart.value, rasterEnd.value);
+      const startMin = parseTimeToMinutes(rasterStart.value);
+      const endMin = parseTimeToMinutes(rasterEnd.value);
+      if (startMin === null || endMin === null) {
+        throw new Error("Bitte Start- und Endzeit angeben.");
+      }
+      const times = generateRasterTimes(rasterInterval.value, startMin, endMin);
       applyTimes(times);
     } catch (err) {
       alert(err.message);

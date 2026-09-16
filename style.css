@@ -199,10 +199,14 @@ tbody td {
 .time-cell {
   padding: 8px;
   background: #fafafd;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .time-input {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   border: none;
   background: transparent;
   font-size: 0.85rem;
@@ -215,6 +219,26 @@ tbody td {
 .time-input:focus {
   outline: 2px solid var(--accent);
   background: white;
+}
+
+.row-remove-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  opacity: 0.5;
+}
+
+.row-remove-btn:hover {
+  opacity: 1;
+  background: #ffe0e0;
+  color: var(--danger);
 }
 
 .data-cell {
@@ -244,6 +268,14 @@ tbody td {
 
 body.no-select {
   user-select: none;
+}
+
+.entry-time-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 2px;
+  letter-spacing: 0.02em;
 }
 
 .entry-title {

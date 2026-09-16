@@ -46,78 +46,92 @@
   <!-- Modal for editing a cell / range -->
   <div id="modalOverlay" class="modal-overlay hidden">
     <div class="modal">
-      <h2 id="modalTitleHeading">Termin bearbeiten</h2>
-      <p id="modalRangeInfo" class="modal-hint"></p>
-      <label class="field">
-        <span>Titel</span>
-        <input type="text" id="fieldTitle" placeholder="z. B. Mathe lernen" maxlength="80" />
-      </label>
-      <label class="field">
-        <span>Beschreibung</span>
-        <textarea id="fieldDescription" placeholder="Details zur Aufgabe..." rows="4" maxlength="500"></textarea>
-      </label>
-      <label class="field">
-        <span>Link</span>
-        <input type="url" id="fieldLink" placeholder="https://..." />
-      </label>
-      <div class="modal-actions">
-        <button id="deleteEntryBtn" class="btn btn-danger">Löschen</button>
-        <div class="modal-actions-right">
-          <button id="cancelModalBtn" class="btn btn-secondary">Abbrechen</button>
-          <button id="saveEntryBtn" class="btn">Speichern</button>
+      <form id="entryForm">
+        <h2 id="modalTitleHeading">Termin bearbeiten</h2>
+        <p id="modalRangeInfo" class="modal-hint"></p>
+        <label class="field">
+          <span>Titel</span>
+          <input type="text" id="fieldTitle" placeholder="z. B. Mathe lernen" maxlength="80" autofocus />
+        </label>
+        <div class="raster-inputs">
+          <label class="field field-inline">
+            <span>Start (optional)</span>
+            <input type="time" id="fieldStartTime" />
+          </label>
+          <label class="field field-inline">
+            <span>Ende (optional)</span>
+            <input type="time" id="fieldEndTime" />
+          </label>
         </div>
-      </div>
+        <label class="field">
+          <span>Beschreibung</span>
+          <textarea id="fieldDescription" placeholder="Details zur Aufgabe..." rows="4" maxlength="500"></textarea>
+        </label>
+        <label class="field">
+          <span>Link</span>
+          <input type="url" id="fieldLink" placeholder="https://..." />
+        </label>
+        <div class="modal-actions">
+          <button id="deleteEntryBtn" type="button" class="btn btn-danger">Löschen</button>
+          <div class="modal-actions-right">
+            <button id="cancelModalBtn" type="button" class="btn btn-secondary">Abbrechen</button>
+            <button id="saveEntryBtn" type="submit" class="btn">Speichern</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
   <!-- Modal for setting the time grid -->
   <div id="timeModalOverlay" class="modal-overlay hidden">
     <div class="modal">
-      <h2>Zeitraster festlegen</h2>
-      <p class="modal-hint">
-        Vorlage wählen oder eigenes Raster erstellen. Einträge bleiben erhalten, es werden nur die Zeit-Labels gesetzt.
-      </p>
+      <form id="timeForm">
+        <h2>Zeitraster festlegen</h2>
+        <p class="modal-hint">
+          Vorlage wählen oder eigenes Raster erstellen. Einträge bleiben erhalten, es werden nur die Zeit-Labels gesetzt.
+        </p>
 
-      <div class="preset-list">
-        <button type="button" class="btn btn-secondary preset-btn" data-preset="tu-dresden">TU Dresden (Doppelstunden)</button>
-        <button type="button" class="btn btn-secondary preset-btn" data-preset="rwth-aachen">RWTH Aachen (Blockraster)</button>
-      </div>
-
-      <hr class="modal-divider" />
-
-      <span class="field-group-label">Eigenes Raster</span>
-      <div class="raster-inputs">
-        <label class="field field-inline">
-          <span>Intervall (Min.)</span>
-          <input type="number" id="rasterInterval" min="5" step="5" value="120" list="rasterIntervalPresets" />
-          <datalist id="rasterIntervalPresets">
-            <option value="10"></option>
-            <option value="15"></option>
-            <option value="20"></option>
-            <option value="30"></option>
-            <option value="45"></option>
-            <option value="60"></option>
-            <option value="90"></option>
-            <option value="120"></option>
-          </datalist>
-        </label>
-        <label class="field field-inline">
-          <span>Von (Uhr)</span>
-          <input type="number" id="rasterStart" min="0" max="23" step="1" value="6" />
-        </label>
-        <label class="field field-inline">
-          <span>Bis (Uhr)</span>
-          <input type="number" id="rasterEnd" min="1" max="24" step="1" value="18" />
-        </label>
-      </div>
-      <button type="button" id="applyRasterBtn" class="btn">Raster anwenden</button>
-
-      <div class="modal-actions">
-        <div></div>
-        <div class="modal-actions-right">
-          <button id="cancelTimeModalBtn" class="btn btn-secondary">Schließen</button>
+        <div class="preset-list">
+          <button type="button" class="btn btn-secondary preset-btn" data-preset="tu-dresden">TU Dresden (Doppelstunden)</button>
+          <button type="button" class="btn btn-secondary preset-btn" data-preset="rwth-aachen">RWTH Aachen (Blockraster)</button>
         </div>
-      </div>
+
+        <hr class="modal-divider" />
+
+        <span class="field-group-label">Eigenes Raster</span>
+        <div class="raster-inputs">
+          <label class="field field-inline">
+            <span>Intervall (Min.)</span>
+            <input type="number" id="rasterInterval" min="5" step="5" value="120" list="rasterIntervalPresets" />
+            <datalist id="rasterIntervalPresets">
+              <option value="10"></option>
+              <option value="15"></option>
+              <option value="20"></option>
+              <option value="30"></option>
+              <option value="45"></option>
+              <option value="60"></option>
+              <option value="90"></option>
+              <option value="120"></option>
+            </datalist>
+          </label>
+          <label class="field field-inline">
+            <span>Von</span>
+            <input type="time" id="rasterStart" value="06:00" />
+          </label>
+          <label class="field field-inline">
+            <span>Bis</span>
+            <input type="time" id="rasterEnd" value="18:00" />
+          </label>
+        </div>
+        <button type="submit" id="applyRasterBtn" class="btn">Raster anwenden</button>
+
+        <div class="modal-actions">
+          <div></div>
+          <div class="modal-actions-right">
+            <button id="cancelTimeModalBtn" type="button" class="btn btn-secondary">Schließen</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
