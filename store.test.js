@@ -8,8 +8,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
-  getToolbarCollapsed,
-  setToolbarCollapsed,
+  getEditLocked,
+  setEditLocked,
   getTheme,
   setTheme,
   addPlan,
@@ -164,23 +164,35 @@ test("loadStore defaults showEditIcons to true for an older store without that f
   assert.equal(getShowEditIcons(reloaded), true);
 });
 
-test("getToolbarCollapsed/setToolbarCollapsed default to false and coerce to boolean", () => {
+test("getEditLocked/setEditLocked default to false and coerce to boolean", () => {
   const store = loadStore(createMemoryStorage());
-  assert.equal(getToolbarCollapsed(store), false);
-  setToolbarCollapsed(store, true);
-  assert.equal(getToolbarCollapsed(store), true);
-  setToolbarCollapsed(store, 0); // falsy, coerced
-  assert.equal(getToolbarCollapsed(store), false);
+  assert.equal(getEditLocked(store), false);
+  setEditLocked(store, true);
+  assert.equal(getEditLocked(store), true);
+  setEditLocked(store, 0); // falsy, coerced
+  assert.equal(getEditLocked(store), false);
 });
 
-test("loadStore defaults toolbarCollapsed to false for an older store without that field", () => {
+test("loadStore defaults editLocked to false for an older store without that field", () => {
   const storage = createMemoryStorage();
   const store = loadStore(storage);
-  delete store.toolbarCollapsed;
+  delete store.editLocked;
   saveStore(store, storage);
 
   const reloaded = loadStore(storage);
-  assert.equal(getToolbarCollapsed(reloaded), false);
+  assert.equal(getEditLocked(reloaded), false);
+});
+
+test("loadStore carries over a legacy toolbarCollapsed value into editLocked", () => {
+  const storage = createMemoryStorage();
+  const store = loadStore(storage);
+  delete store.editLocked;
+  store.toolbarCollapsed = true;
+  saveStore(store, storage);
+
+  const reloaded = loadStore(storage);
+  assert.equal(getEditLocked(reloaded), true);
+  assert.equal(reloaded.toolbarCollapsed, undefined);
 });
 
 test("getTheme/setTheme default to system and validate against the known theme list", () => {

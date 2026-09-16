@@ -469,33 +469,40 @@ Applying a preset/grid:
   so deliberately not part of `.app-actions`, but its own button in `header-top` next to the
   global selects.
 
-### 22. Collapsible header toolbar
+### 22. Edit lock / "just look and use" mode
 
-- **Trigger:** a "just look at and use the schedule" mode — collapse away everything that's
-  about editing/managing plans, keeping only what's needed to read the current one and switch
-  to another.
-- A chevron button (`#toolbarCollapseBtn`, right next to the title — the one element that's
-  never hidden by this) toggles `body.toolbar-collapsed`. Persisted per browser in
-  `store.toolbarCollapsed` (`getToolbarCollapsed`/`setToolbarCollapsed` in `store.js`, same
-  pattern as `showEditIcons`), not per plan, default off (collapsed is opt-in, not the
-  default for new/existing users).
-- **Collapsed hides:** the whole grouped toolbar from item 19 (Data/Grid/Print/Reset), the
-  hint text, the plan +/🗑 buttons, and the About button (item 21) — leaving the plan title,
-  the plan switcher dropdown, and the theme/language selects from items 20/12. It also hides
-  the same inline table edit icons that `showEditIcons` (item 16) does (row/column-remove,
+- **Trigger:** a "just look at and use the schedule" mode — hide everything that's about
+  editing/managing plans, keeping only what's needed to read the current one and switch to
+  another, and actually stop editing from happening (not just hide its buttons).
+- A lock button (`#editLockBtn`, 🔓/🔒, right next to the title — the one element that's never
+  hidden by this) toggles `body.edit-locked`. Persisted per browser in `store.editLocked`
+  (`getEditLocked`/`setEditLocked` in `store.js`, same pattern as `showEditIcons`), not per
+  plan, default off (locked is opt-in, not the default for new/existing users). A store saved
+  under the older `toolbarCollapsed` name (this feature's previous, non-locking incarnation)
+  has that value carried over into `editLocked` on load, then the old field is dropped.
+- **Locked hides:** the whole grouped toolbar from item 19 (Data/Grid/Print/Reset), the hint
+  text, the plan +/🗑 buttons, and the About button (item 21) — leaving the plan title, the
+  plan switcher dropdown, and the theme/language selects from items 20/12. It also hides the
+  same inline table edit icons that `showEditIcons` (item 16) does (row/column-remove,
   add-column, the resize handles, the empty-cell "+") — reusing that rule's selector list
   rather than duplicating it, and without touching `showEditIcons`'s own saved value, so
-  expanding the toolbar again shows those icons exactly as that toggle had them.
-- **Collapsed + narrow (≤ 600px):** the plan switcher and the theme/language selects also
-  hide, leaving only the title and the chevron to expand again — there just isn't room for a
-  row of selects next to the title at phone width once the rest of the chrome is already
-  gone.
-- Like `showEditIcons` and dark mode, this is a display preference, not an edit lock: every
-  interaction (click-to-add, drag-select, inline rename of the title/columns, switching
-  plans) keeps working exactly the same while collapsed, including on the plan-switcher
-  dropdown that stays visible on wider screens.
-- Always hidden in print (item 15) regardless of collapsed state, like every other
-  interactive header control.
+  unlocking again shows those icons exactly as that toggle had them.
+- **Locked + narrow (≤ 600px):** the plan switcher and the theme/language selects also hide,
+  leaving only the title and the lock button to unlock again — there just isn't room for a row
+  of selects next to the title at phone width once the rest of the chrome is already gone.
+- **Locked actually blocks editing**, unlike `showEditIcons`/dark mode which are pure display
+  preferences: click-to-add and drag-select (item 4, including the touch long-press path from
+  item 24) no-op while locked (guarded once, at the shared `mousedown`/touch-long-press-timer
+  entry point both share via `dragState`), and `.day-name`/`#planTitle` get
+  `contentEditable = "false"` so they can't be renamed (tapping the narrow-width
+  `.day-name-short` label, item 23, is guarded the same way rather than relying on the
+  now-uneditable span alone). Deliberately does **not** open any read-only "view" modal for a
+  locked cell — locked means nothing happens on click, not a different, non-editing click
+  result.
+- **Left functional while locked**, since none of it mutates the current plan's content:
+  switching plans (plan-switcher dropdown), theme, language, and printing.
+- Always hidden in print (item 15) regardless of lock state, like every other interactive
+  header control.
 
 ### 23. Short day names on narrow screens
 
@@ -545,6 +552,23 @@ Applying a preset/grid:
   modal for one cell exactly as it always has, no touch-specific code path needed for it.
 - The hint text now mentions this ("press and hold first on touch") — a long-press has no
   visual affordance hinting it's possible, unlike a mouse drag.
+
+### 25. Frozen time column on narrow screens
+
+- **Trigger:** below the width where the table scrolls horizontally (its own
+  `min-width: 600px` floor, item 17), scrolling right to see a later day column also scrolled
+  the time column out of view — losing track of which time row is being looked at while
+  scrolling vertically through entries.
+- `.time-col` (the header/corner cell) and `.time-cell` (each row's time-label cell) get
+  `position: sticky; left: 0`, scoped to the same `@media (max-width: 600px)` block as the
+  rest of the narrow-width layout — unchanged (`position: relative`, needed as the
+  `.col-resize-handle`'s positioning context, item 17) above that width, where the table
+  already fits without horizontal scroll.
+- **Layering** when both the frozen header row (`thead th`, sticky top, item 17) and the
+  frozen time column are visible at once: `.time-cell` (`z-index: 2`) sits below `thead th`
+  (`z-index: 3`) so the header row still covers it while scrolled down, and both sit below
+  `.time-col` (`z-index: 4`), the corner cell frozen in both directions, which has to stay on
+  top of both the frozen row and the frozen column it's the intersection of.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

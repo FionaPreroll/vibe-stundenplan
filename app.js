@@ -32,8 +32,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
-  getToolbarCollapsed,
-  setToolbarCollapsed,
+  getEditLocked,
+  setEditLocked,
   getTheme,
   setTheme,
   addPlan,
@@ -68,7 +68,7 @@ import {
   const newPlanBtn = document.getElementById("newPlanBtn");
   const deletePlanBtn = document.getElementById("deletePlanBtn");
   const languageSwitcher = document.getElementById("languageSwitcher");
-  const toolbarCollapseBtn = document.getElementById("toolbarCollapseBtn");
+  const editLockBtn = document.getElementById("editLockBtn");
   const themeSwitcher = document.getElementById("themeSwitcher");
   const aboutBtn = document.getElementById("aboutBtn");
   const aboutModalOverlay = document.getElementById("aboutModalOverlay");
@@ -166,18 +166,25 @@ import {
     editIconsToggle.checked = show;
   }
 
-  // A "just look at and use the schedule" display mode: hides the toolbar,
-  // the plan +/- buttons, the about button, and (like hide-edit-icons) the
-  // inline row/column-remove icons — collapsed narrower than 600px, only
-  // the title is left. Doesn't touch the underlying showEditIcons
-  // preference, so expanding again restores whatever that toggle had.
-  function applyToolbarCollapsed() {
-    const collapsed = getToolbarCollapsed(store);
-    document.body.classList.toggle("toolbar-collapsed", collapsed);
-    toolbarCollapseBtn.textContent = collapsed ? "⌄" : "⌃";
-    const titleKey = collapsed ? "expandToolbarTitle" : "collapseToolbarTitle";
-    toolbarCollapseBtn.title = t(titleKey);
-    toolbarCollapseBtn.setAttribute("aria-label", t(titleKey));
+  // A "just look at and use the schedule" mode: hides the toolbar, the plan
+  // +/- buttons, the about button, and (like hide-edit-icons) the inline
+  // row/column-remove icons — collapsed narrower than 600px, only the title
+  // is left — and actually locks editing: no new entries, no renaming the
+  // plan title or day columns. Doesn't touch the underlying showEditIcons
+  // preference, so unlocking again restores whatever that toggle had.
+  // Switching plans, theme, language, and printing stay available since
+  // they don't mutate the current plan's content.
+  function applyEditLocked() {
+    const locked = getEditLocked(store);
+    document.body.classList.toggle("edit-locked", locked);
+    editLockBtn.textContent = locked ? "🔒" : "🔓";
+    const titleKey = locked ? "unlockEditingTitle" : "lockEditingTitle";
+    editLockBtn.title = t(titleKey);
+    editLockBtn.setAttribute("aria-label", t(titleKey));
+    planTitleEl.contentEditable = locked ? "false" : "true";
+    headerRow.querySelectorAll(".day-name").forEach((el) => {
+      el.contentEditable = locked ? "false" : "true";
+    });
   }
 
   // "system" leaves data-theme unset so the @media (prefers-color-scheme)
@@ -212,7 +219,7 @@ import {
 
       const nameEl = document.createElement("span");
       nameEl.className = "day-name";
-      nameEl.contentEditable = "true";
+      nameEl.contentEditable = getEditLocked(store) ? "false" : "true";
       nameEl.spellcheck = false;
       nameEl.textContent = day;
       nameEl.title = t("renameHint");
@@ -227,7 +234,10 @@ import {
       shortEl.className = "day-name-short";
       shortEl.setAttribute("aria-hidden", "true");
       shortEl.textContent = shortDayLabel(day, getLanguage(store));
-      shortEl.addEventListener("click", () => focusAndSelect(nameEl));
+      shortEl.addEventListener("click", () => {
+        if (getEditLocked(store)) return;
+        focusAndSelect(nameEl);
+      });
       inner.appendChild(shortEl);
 
       const removeBtn = document.createElement("button");
@@ -410,7 +420,7 @@ import {
   function renderAll() {
     applyStaticTranslations();
     applyEditIconsVisibility();
-    applyToolbarCollapsed();
+    applyEditLocked();
     applyTheme();
     renderHeader();
     renderPlanSwitcher();
@@ -465,6 +475,7 @@ import {
   function wireCellSelection(td, row, day) {
     td.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (getEditLocked(store)) return;
       e.preventDefault();
       dragState = { day, anchorRow: row, currentRow: row };
       document.body.classList.add("no-select");
@@ -500,6 +511,7 @@ import {
       "touchstart",
       (e) => {
         if (e.touches.length !== 1) return;
+        if (getEditLocked(store)) return;
         const touch = e.touches[0];
         touchPressStart = { x: touch.clientX, y: touch.clientY };
         touchDragActive = false;
@@ -1056,10 +1068,10 @@ import {
     applyTheme();
   });
 
-  toolbarCollapseBtn.addEventListener("click", () => {
-    setToolbarCollapsed(store, !getToolbarCollapsed(store));
+  editLockBtn.addEventListener("click", () => {
+    setEditLocked(store, !getEditLocked(store));
     persist();
-    applyToolbarCollapsed();
+    applyEditLocked();
   });
 
   timeForm.addEventListener("submit", (e) => {

@@ -88,9 +88,13 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
         if (typeof parsed.showEditIcons !== "boolean") {
           parsed.showEditIcons = true;
         }
-        if (typeof parsed.toolbarCollapsed !== "boolean") {
-          parsed.toolbarCollapsed = false;
+        if (typeof parsed.editLocked !== "boolean") {
+          // Carries over the old "collapsed toolbar" preference this
+          // replaced, so a store from before it became a real edit lock
+          // keeps behaving the same way rather than silently unlocking.
+          parsed.editLocked = typeof parsed.toolbarCollapsed === "boolean" ? parsed.toolbarCollapsed : false;
         }
+        delete parsed.toolbarCollapsed;
         if (!THEMES.includes(parsed.theme)) {
           parsed.theme = "system";
         }
@@ -106,7 +110,7 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
   return {
     language: defaultLanguage,
     showEditIcons: true,
-    toolbarCollapsed: false,
+    editLocked: false,
     theme: "system",
     activePlanId: initialPlan.id,
     planOrder: [initialPlan.id],
@@ -140,12 +144,12 @@ export function setShowEditIcons(store, show) {
   return store;
 }
 
-export function getToolbarCollapsed(store) {
-  return typeof store.toolbarCollapsed === "boolean" ? store.toolbarCollapsed : false;
+export function getEditLocked(store) {
+  return typeof store.editLocked === "boolean" ? store.editLocked : false;
 }
 
-export function setToolbarCollapsed(store, collapsed) {
-  store.toolbarCollapsed = Boolean(collapsed);
+export function setEditLocked(store, locked) {
+  store.editLocked = Boolean(locked);
   return store;
 }
 

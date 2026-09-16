@@ -288,35 +288,43 @@ body {
 
 /* Hides the interactive icons (row/column remove, add-column) without
    disabling the underlying click/drag behavior — a display preference,
-   not an edit-lock. Collapsing the header toolbar (below) implies the same
-   for these inline icons, without touching the hide-edit-icons toggle's
-   own saved state — expanding the toolbar again restores whatever that
-   toggle was set to. */
+   not an edit-lock. Locking editing (below) hides the same icons too,
+   without touching the hide-edit-icons toggle's own saved state —
+   unlocking again restores whatever that toggle was set to. */
 body.hide-edit-icons .row-remove-btn,
 body.hide-edit-icons .col-remove-btn,
 body.hide-edit-icons .add-day-col,
 body.hide-edit-icons .cell-placeholder,
 body.hide-edit-icons .col-resize-handle,
-body.toolbar-collapsed .row-remove-btn,
-body.toolbar-collapsed .col-remove-btn,
-body.toolbar-collapsed .add-day-col,
-body.toolbar-collapsed .cell-placeholder,
-body.toolbar-collapsed .col-resize-handle {
+body.edit-locked .row-remove-btn,
+body.edit-locked .col-remove-btn,
+body.edit-locked .add-day-col,
+body.edit-locked .cell-placeholder,
+body.edit-locked .col-resize-handle {
   display: none !important;
 }
 
 /* Collapses the header down to just the title (plus the plan switcher and
    theme/language selects, which stay reachable down to tablet width) for a
-   "look at and use the schedule, don't edit it" view — a display
-   preference like hide-edit-icons above, not an edit lock: every
-   interaction (click-to-add, drag-select, renaming) keeps working, only
-   the buttons/icons that trigger them get out of the way. */
-body.toolbar-collapsed .app-actions,
-body.toolbar-collapsed .hint-text,
-body.toolbar-collapsed #newPlanBtn,
-body.toolbar-collapsed #deletePlanBtn,
-body.toolbar-collapsed #aboutBtn {
+   "look at and use the schedule, don't edit it" mode — and actually locks
+   editing (app.js): no new entries, no renaming the plan title or day
+   columns. Switching plans, theme, language, and printing stay available
+   since they don't mutate the current plan's content. */
+body.edit-locked .app-actions,
+body.edit-locked .hint-text,
+body.edit-locked #newPlanBtn,
+body.edit-locked #deletePlanBtn,
+body.edit-locked #aboutBtn {
   display: none !important;
+}
+
+/* Locked content stays visually inert — no hand cursor implying it's
+   clickable, no text caret implying it's editable. */
+body.edit-locked .data-cell,
+body.edit-locked .day-name,
+body.edit-locked .day-name-short,
+body.edit-locked #planTitle {
+  cursor: default;
 }
 
 main {
@@ -357,6 +365,9 @@ thead th {
   color: #1c1c26;
   text-align: center;
   border-bottom: 2px solid var(--border);
+  /* Sits above the frozen .time-cell body column (below) when scrolled
+     right on a narrow screen, so the sticky header row still covers it. */
+  z-index: 3;
 }
 
 .time-col {
@@ -795,11 +806,11 @@ body.no-select {
     align-self: flex-end;
   }
 
-  /* Collapsed + narrow: even the plan switcher and theme/language selects
-     go, leaving just the title (and the toggle to expand again). */
-  body.toolbar-collapsed .plan-controls,
-  body.toolbar-collapsed #themeSwitcher,
-  body.toolbar-collapsed #languageSwitcher {
+  /* Locked + narrow: even the plan switcher and theme/language selects go,
+     leaving just the title (and the toggle to unlock again). */
+  body.edit-locked .plan-controls,
+  body.edit-locked #themeSwitcher,
+  body.edit-locked #languageSwitcher {
     display: none !important;
   }
 
@@ -821,6 +832,25 @@ body.no-select {
 
   .day-col-inner.editing .day-name-short {
     display: none;
+  }
+
+  /* Below this width the table scrolls horizontally (see table's own
+     min-width above), so freeze the time column on the left the same way
+     the header row is already frozen on top — otherwise it scrolls out of
+     view exactly when it's most needed, while scrolled right to a later
+     day column. .time-col is the header/corner cell (sticky both ways;
+     highest z-index so it stays above both the frozen header row and the
+     frozen body column), .time-cell the body cells (sticky left only). */
+  .time-col {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+  }
+
+  .time-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
   }
 }
 
@@ -852,7 +882,7 @@ body.no-select {
   #themeSwitcher,
   #languageSwitcher,
   #aboutBtn,
-  #toolbarCollapseBtn,
+  #editLockBtn,
   .app-actions,
   .hint-text,
   .row-remove-btn,
