@@ -596,3 +596,8 @@ Applying a preset/grid:
 - No version/build number anywhere in the UI (e.g. in the About modal, item 21) — without a
   build step there's no natural point to generate one that wouldn't have to be maintained by
   hand.
+- No cache-busting for `app.js`/the other JS modules, only for `style.css` (a manually bumped
+  `?v=N` on its `index.html` `<link>`, see CONTRIBUTING.md) — versioning the JS modules safely
+  would mean versioning every relative `import` between them consistently, which isn't worth
+  the complexity this project's size warrants; `style.css` is the one file a real stale-cache
+  incident actually broke.

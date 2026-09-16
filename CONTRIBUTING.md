@@ -131,6 +131,24 @@ never in the shipped app code, never needed by `npm test`.
   means print output can look wrong in dark mode — so when adding a primitive token, also
   extend that reset block in `style.css`.
 
+## Deploying: bump style.css's cache-buster
+
+`index.html` links the stylesheet as `style.css?v=N`. GitHub Pages doesn't support
+per-request cache headers, so without a version query string, a visitor whose browser has
+the previous `style.css` cached can end up with the new HTML paired with the old CSS at the
+same time — new markup with no matching rule falls back to browser-default layout, which
+breaks things in a way that's easy to misdiagnose as a real bug rather than a caching
+mismatch (this happened once in practice: a wrapper `<div>` added to `index.html` had no
+flex rule in a visitor's still-cached `style.css`, silently falling back to block layout and
+stacking two elements that were supposed to sit side by side).
+
+**Bump the `?v=N` number by one whenever `style.css` changes and is pushed** — nothing
+enforces this automatically, it's a manual step. `app.js` and the other JS modules are
+deliberately *not* versioned the same way: doing that safely would mean versioning every
+relative `import` in every module consistently (they import each other), which isn't worth
+the added complexity for this project's size — this is scoped to just the one file that
+actually broke.
+
 ## Checklist for a new feature
 
 1. Pure logic (data-model operations, validation) in `logic.js`/`io.js`/`store.js`, with
@@ -141,5 +159,7 @@ never in the shipped app code, never needed by `npm test`.
    similar): update [EXPORT_FORMAT.md](EXPORT_FORMAT.md) to match — it's the one place that
    fully specifies the export/import JSON format.
 5. Manual Playwright run-through of the affected interaction (see the test philosophy above).
-6. `npm test` green, then commit. CI (`ci.yml`) and deploy (`deploy-pages.yml`) run
+6. Touched `style.css`? Bump the `?v=N` cache-buster on its `<link>` in `index.html` (see
+   "Deploying" above).
+7. `npm test` green, then commit. CI (`ci.yml`) and deploy (`deploy-pages.yml`) run
    automatically on push to `main`.
