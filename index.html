@@ -8,8 +8,18 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>Mein Stundenplan</h1>
+    <div class="header-top">
+      <div class="plan-controls">
+        <select id="planSwitcher" class="plan-switcher" aria-label="Stundenplan wählen"></select>
+        <button id="newPlanBtn" class="icon-btn" type="button" title="Neuen Stundenplan anlegen">+</button>
+        <button id="deletePlanBtn" class="icon-btn" type="button" title="Diesen Stundenplan löschen">🗑</button>
+      </div>
+      <h1 id="planTitle" contenteditable="true" spellcheck="false" title="Klicken zum Umbenennen"></h1>
+    </div>
     <div class="app-actions">
+      <button id="exportBtn" class="btn btn-secondary">Exportieren</button>
+      <button id="importBtn" class="btn btn-secondary">Importieren</button>
+      <input type="file" id="importFileInput" accept="application/json,.json" hidden />
       <button id="timePresetBtn" class="btn btn-secondary">Zeiten festlegen</button>
       <button id="addRowBtn" class="btn">+ Zeile hinzufügen</button>
       <button id="resetBtn" class="btn btn-secondary">Zurücksetzen</button>
@@ -17,6 +27,7 @@
   </header>
 
   <main>
+    <p class="hint-text">Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin.</p>
     <div class="table-wrap">
       <table id="planTable">
         <thead>
@@ -32,10 +43,11 @@
     </div>
   </main>
 
-  <!-- Modal for editing a cell -->
+  <!-- Modal for editing a cell / range -->
   <div id="modalOverlay" class="modal-overlay hidden">
     <div class="modal">
       <h2 id="modalTitleHeading">Termin bearbeiten</h2>
+      <p id="modalRangeInfo" class="modal-hint"></p>
       <label class="field">
         <span>Titel</span>
         <input type="text" id="fieldTitle" placeholder="z. B. Mathe lernen" maxlength="80" />
@@ -76,8 +88,18 @@
       <span class="field-group-label">Eigenes Raster</span>
       <div class="raster-inputs">
         <label class="field field-inline">
-          <span>Intervall (Std.)</span>
-          <input type="number" id="rasterInterval" min="0.5" step="0.5" value="2" />
+          <span>Intervall (Min.)</span>
+          <input type="number" id="rasterInterval" min="5" step="5" value="120" list="rasterIntervalPresets" />
+          <datalist id="rasterIntervalPresets">
+            <option value="10"></option>
+            <option value="15"></option>
+            <option value="20"></option>
+            <option value="30"></option>
+            <option value="45"></option>
+            <option value="60"></option>
+            <option value="90"></option>
+            <option value="120"></option>
+          </datalist>
         </label>
         <label class="field field-inline">
           <span>Von (Uhr)</span>

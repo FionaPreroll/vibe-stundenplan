@@ -2,14 +2,21 @@ export function cellKey(row, day) {
   return `${row}_${day}`;
 }
 
+export function parseCellKey(key) {
+  const idx = key.indexOf("_");
+  return { row: Number(key.slice(0, idx)), day: key.slice(idx + 1) };
+}
+
 export function formatHM(totalMinutes) {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export function generateRasterTimes(intervalHours, startHour, endHour) {
-  const interval = Number(intervalHours);
+// intervalMinutes is the raster step in minutes (e.g. 10, 15, 30, 120),
+// which lets the raster express sub-hour ticks without floating-point hours.
+export function generateRasterTimes(intervalMinutes, startHour, endHour) {
+  const interval = Number(intervalMinutes);
   const start = Number(startHour);
   const end = Number(endHour);
 
@@ -20,7 +27,7 @@ export function generateRasterTimes(intervalHours, startHour, endHour) {
     throw new Error("Das Ende muss nach dem Start liegen.");
   }
 
-  const stepMin = Math.round(interval * 60);
+  const stepMin = Math.round(interval);
   const startMin = Math.round(start * 60);
   const endMin = Math.round(end * 60);
 
@@ -81,4 +88,51 @@ export function mergeTimes(existingTimes, newTimes) {
 
 export function requiredRowCount(currentRowCount, newTimesLength) {
   return Math.max(currentRowCount, newTimesLength);
+}
+
+// --- Multi-row entries (drag-to-select ranges) -----------------------
+
+export function getEntrySpan(entry) {
+  return entry && Number.isInteger(entry.span) && entry.span > 0 ? entry.span : 1;
+}
+
+// Whether (row, day) is covered by an earlier row's multi-row entry.
+// Entries never overlap (callers must clear overlaps before writing), so the
+// first entry found scanning backwards is decisive: either it reaches this
+// row or nothing earlier can.
+export function isCellCovered(row, day, entries) {
+  for (let r = row - 1; r >= 0; r--) {
+    const entry = entries[cellKey(r, day)];
+    if (entry) {
+      return r + getEntrySpan(entry) > row;
+    }
+  }
+  return false;
+}
+
+export function getCellRenderInfo(row, day, entries) {
+  const key = cellKey(row, day);
+  const entry = entries[key];
+  if (entry) {
+    return { key, entry, span: getEntrySpan(entry), hidden: false };
+  }
+  if (isCellCovered(row, day, entries)) {
+    return { key, entry: null, span: 1, hidden: true };
+  }
+  return { key, entry: null, span: 1, hidden: false };
+}
+
+export function computeSelectionRange(anchorRow, currentRow) {
+  return { rowStart: Math.min(anchorRow, currentRow), rowEnd: Math.max(anchorRow, currentRow) };
+}
+
+export function findOverlappingKeys(entries, day, rowStart, rowEnd) {
+  const keys = [];
+  for (const key of Object.keys(entries)) {
+    const { row, day: entryDay } = parseCellKey(key);
+    if (entryDay !== day) continue;
+    const entryEnd = row + getEntrySpan(entries[key]) - 1;
+    if (entryEnd >= rowStart && row <= rowEnd) keys.push(key);
+  }
+  return keys;
 }

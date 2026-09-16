@@ -5,33 +5,46 @@ import {
   computeEntryUpdate,
   mergeTimes,
   requiredRowCount,
+  getEntrySpan,
+  getCellRenderInfo,
+  computeSelectionRange,
+  findOverlappingKeys,
 } from "./logic.js";
+import { serializePlan, parsePlanImport } from "./io.js";
+import {
+  loadStore,
+  saveStore,
+  getActivePlan,
+  addPlan,
+  removePlan,
+  renamePlan,
+  switchPlan,
+  createEmptyPlan,
+  DEFAULT_PLAN_NAME,
+  INITIAL_ROW_COUNT,
+} from "./store.js";
 
 (() => {
-  const STORAGE_KEY = "stundenplan-data-v1";
+  const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
-  const DAYS = [
-    "Montag",
-    "Dienstag",
-    "Mittwoch",
-    "Donnerstag",
-    "Freitag",
-    "Samstag",
-    "Sonntag",
-  ];
+  let store = loadStore(window.localStorage);
 
-  const INITIAL_ROW_COUNT = 10;
-
-  /** @type {{ rowCount: number, times: string[], entries: Record<string, {title: string, description: string, link: string}> }} */
-  let state = loadState();
+  const planTitleEl = document.getElementById("planTitle");
+  const planSwitcher = document.getElementById("planSwitcher");
+  const newPlanBtn = document.getElementById("newPlanBtn");
+  const deletePlanBtn = document.getElementById("deletePlanBtn");
 
   const headerRow = document.getElementById("headerRow");
   const planBody = document.getElementById("planBody");
   const addRowBtn = document.getElementById("addRowBtn");
   const resetBtn = document.getElementById("resetBtn");
+  const exportBtn = document.getElementById("exportBtn");
+  const importBtn = document.getElementById("importBtn");
+  const importFileInput = document.getElementById("importFileInput");
 
   const modalOverlay = document.getElementById("modalOverlay");
   const modalTitleHeading = document.getElementById("modalTitleHeading");
+  const modalRangeInfo = document.getElementById("modalRangeInfo");
   const fieldTitle = document.getElementById("fieldTitle");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
@@ -47,34 +60,18 @@ import {
   const rasterStart = document.getElementById("rasterStart");
   const rasterEnd = document.getElementById("rasterEnd");
 
-  let activeCellKey = null;
+  let activeSelection = null; // { day, rowStart, rowEnd, isNewRange }
+  let dragState = null; // { day, anchorRow, currentRow }
 
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          return {
-            rowCount: parsed.rowCount || INITIAL_ROW_COUNT,
-            times: Array.isArray(parsed.times) ? parsed.times : [],
-            entries: parsed.entries && typeof parsed.entries === "object" ? parsed.entries : {},
-          };
-        }
-      }
-    } catch (e) {
-      console.warn("Konnte gespeicherten Stundenplan nicht laden:", e);
-    }
-    return { rowCount: INITIAL_ROW_COUNT, times: [], entries: {} };
+  function plan() {
+    return getActivePlan(store);
   }
 
-  function saveState() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.warn("Konnte Stundenplan nicht speichern:", e);
-    }
+  function persist() {
+    saveStore(store, window.localStorage);
   }
+
+  // --- Rendering --------------------------------------------------------
 
   function renderHeader() {
     headerRow.querySelectorAll("th.day-col").forEach((el) => el.remove());
@@ -86,9 +83,33 @@ import {
     });
   }
 
+  function renderPlanSwitcher() {
+    planSwitcher.innerHTML = "";
+    store.planOrder.forEach((id) => {
+      const p = store.plans[id];
+      if (!p) return;
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = p.name;
+      if (id === store.activePlanId) opt.selected = true;
+      planSwitcher.appendChild(opt);
+    });
+    deletePlanBtn.disabled = store.planOrder.length <= 1;
+  }
+
+  function renderPlanTitle() {
+    const p = plan();
+    if (planTitleEl.textContent !== p.name) {
+      planTitleEl.textContent = p.name;
+    }
+    document.title = `${p.name} · Stundenplan`;
+  }
+
   function renderBody() {
+    const p = plan();
     planBody.innerHTML = "";
-    for (let row = 0; row < state.rowCount; row++) {
+
+    for (let row = 0; row < p.rowCount; row++) {
       const tr = document.createElement("tr");
 
       const timeTd = document.createElement("td");
@@ -97,21 +118,26 @@ import {
       timeInput.type = "text";
       timeInput.className = "time-input";
       timeInput.placeholder = "z. B. 08:00–08:45";
-      timeInput.value = state.times[row] || "";
+      timeInput.value = p.times[row] || "";
       timeInput.addEventListener("input", () => {
-        state.times[row] = timeInput.value;
-        saveState();
+        p.times[row] = timeInput.value;
+        persist();
       });
       timeTd.appendChild(timeInput);
       tr.appendChild(timeTd);
 
       DAYS.forEach((day) => {
+        const info = getCellRenderInfo(row, day, p.entries);
+        if (info.hidden) return;
+
         const td = document.createElement("td");
         td.className = "data-cell";
-        const key = cellKey(row, day);
-        td.dataset.key = key;
-        renderCellContent(td, key);
-        td.addEventListener("click", () => openModal(key));
+        td.dataset.key = info.key;
+        td.dataset.row = String(row);
+        td.dataset.day = day;
+        if (info.span > 1) td.rowSpan = info.span;
+        renderCellContent(td, info.entry);
+        wireCellSelection(td, row, day);
         tr.appendChild(td);
       });
 
@@ -119,8 +145,7 @@ import {
     }
   }
 
-  function renderCellContent(td, key) {
-    const entry = state.entries[key];
+  function renderCellContent(td, entry) {
     td.innerHTML = "";
     if (entry && entry.title) {
       td.classList.add("filled");
@@ -143,6 +168,7 @@ import {
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.textContent = "🔗 Link";
+        link.addEventListener("mousedown", (e) => e.stopPropagation());
         link.addEventListener("click", (e) => e.stopPropagation());
         td.appendChild(link);
       }
@@ -155,65 +181,144 @@ import {
     }
   }
 
-  function refreshCell(key) {
-    const td = planBody.querySelector(`td[data-key="${CSS.escape(key)}"]`);
-    if (td) renderCellContent(td, key);
+  function renderAll() {
+    renderPlanSwitcher();
+    renderPlanTitle();
+    renderBody();
   }
 
-  function openModal(key) {
-    activeCellKey = key;
-    const entry = state.entries[key] || { title: "", description: "", link: "" };
-    fieldTitle.value = entry.title || "";
-    fieldDescription.value = entry.description || "";
-    fieldLink.value = entry.link || "";
-    deleteEntryBtn.style.display = state.entries[key] ? "inline-block" : "none";
-    modalTitleHeading.textContent = state.entries[key] ? "Termin bearbeiten" : "Termin hinzufügen";
+  // --- Drag-to-select ranges ---------------------------------------------
+
+  function wireCellSelection(td, row, day) {
+    td.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      dragState = { day, anchorRow: row, currentRow: row };
+      document.body.classList.add("no-select");
+      highlightSelection(day, row, row);
+    });
+
+    td.addEventListener("mouseenter", () => {
+      if (!dragState || dragState.day !== day) return;
+      dragState.currentRow = row;
+      highlightSelection(dragState.day, dragState.anchorRow, row);
+    });
+  }
+
+  function clearHighlight() {
+    planBody.querySelectorAll(".data-cell.selecting").forEach((el) => el.classList.remove("selecting"));
+  }
+
+  function highlightSelection(day, anchorRow, currentRow) {
+    clearHighlight();
+    const { rowStart, rowEnd } = computeSelectionRange(anchorRow, currentRow);
+    planBody.querySelectorAll(".data-cell").forEach((td) => {
+      if (td.dataset.day !== day) return;
+      const r = Number(td.dataset.row);
+      const span = td.rowSpan || 1;
+      if (r + span - 1 >= rowStart && r <= rowEnd) {
+        td.classList.add("selecting");
+      }
+    });
+  }
+
+  document.addEventListener("mouseup", () => {
+    if (!dragState) return;
+    const { day, anchorRow, currentRow } = dragState;
+    dragState = null;
+    document.body.classList.remove("no-select");
+    clearHighlight();
+    finalizeSelection(day, anchorRow, currentRow);
+  });
+
+  function finalizeSelection(day, anchorRow, currentRow) {
+    const { rowStart, rowEnd } = computeSelectionRange(anchorRow, currentRow);
+    const p = plan();
+    const anchorKey = cellKey(rowStart, day);
+    const existing = p.entries[anchorKey];
+
+    if (rowStart === rowEnd && existing) {
+      openEntryModal({
+        day,
+        rowStart,
+        rowEnd: rowStart + getEntrySpan(existing) - 1,
+        isNewRange: false,
+        entry: existing,
+      });
+      return;
+    }
+
+    openEntryModal({ day, rowStart, rowEnd, isNewRange: true, entry: null });
+  }
+
+  // --- Entry modal --------------------------------------------------------
+
+  function describeSelection(day, rowStart, rowEnd) {
+    const p = plan();
+    if (rowStart === rowEnd) {
+      const label = p.times[rowStart];
+      return label ? `${day} · ${label}` : `${day} · Zeile ${rowStart + 1}`;
+    }
+    const startLabel = p.times[rowStart];
+    const endLabel = p.times[rowEnd];
+    if (!startLabel && !endLabel) {
+      return `${day} · Zeile ${rowStart + 1}–${rowEnd + 1}`;
+    }
+    const startText = startLabel ? startLabel.split("–")[0] : `Zeile ${rowStart + 1}`;
+    const endText = endLabel ? endLabel.split("–").pop() : `Zeile ${rowEnd + 1}`;
+    return `${day} · ${startText}–${endText}`;
+  }
+
+  function openEntryModal({ day, rowStart, rowEnd, isNewRange, entry }) {
+    activeSelection = { day, rowStart, rowEnd, isNewRange };
+    fieldTitle.value = entry?.title || "";
+    fieldDescription.value = entry?.description || "";
+    fieldLink.value = entry?.link || "";
+    deleteEntryBtn.style.display = entry ? "inline-block" : "none";
+    modalTitleHeading.textContent = entry ? "Termin bearbeiten" : "Termin hinzufügen";
+    modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
     modalOverlay.classList.remove("hidden");
     setTimeout(() => fieldTitle.focus(), 0);
   }
 
   function closeModal() {
     modalOverlay.classList.add("hidden");
-    activeCellKey = null;
+    activeSelection = null;
   }
 
   function saveEntry() {
-    if (!activeCellKey) return;
+    if (!activeSelection) return;
+    const { day, rowStart, rowEnd, isNewRange } = activeSelection;
+    const p = plan();
     const update = computeEntryUpdate(fieldTitle.value, fieldDescription.value, fieldLink.value);
+    const anchorKey = cellKey(rowStart, day);
 
-    if (!update) {
-      delete state.entries[activeCellKey];
-    } else {
-      state.entries[activeCellKey] = update;
+    if (isNewRange) {
+      findOverlappingKeys(p.entries, day, rowStart, rowEnd).forEach((k) => delete p.entries[k]);
     }
 
-    saveState();
-    refreshCell(activeCellKey);
+    if (!update) {
+      delete p.entries[anchorKey];
+    } else {
+      const span = rowEnd - rowStart + 1;
+      p.entries[anchorKey] = span > 1 ? { ...update, span } : update;
+    }
+
+    persist();
+    renderBody();
     closeModal();
   }
 
   function deleteEntry() {
-    if (!activeCellKey) return;
-    delete state.entries[activeCellKey];
-    saveState();
-    refreshCell(activeCellKey);
+    if (!activeSelection) return;
+    const { day, rowStart } = activeSelection;
+    delete plan().entries[cellKey(rowStart, day)];
+    persist();
+    renderBody();
     closeModal();
   }
 
-  function addRow() {
-    state.rowCount += 1;
-    saveState();
-    renderBody();
-  }
-
-  function resetAll() {
-    if (!confirm("Wirklich den gesamten Stundenplan zurücksetzen? Das kann nicht rückgängig gemacht werden.")) {
-      return;
-    }
-    state = { rowCount: INITIAL_ROW_COUNT, times: [], entries: {} };
-    saveState();
-    renderBody();
-  }
+  // --- Time-grid modal ------------------------------------------------------
 
   function openTimeModal() {
     timeModalOverlay.classList.remove("hidden");
@@ -225,18 +330,96 @@ import {
 
   function applyTimes(newTimes) {
     if (newTimes.length === 0) return;
+    const p = plan();
 
-    const hasConflict = newTimes.some((t, i) => state.times[i] && state.times[i] !== t);
+    const hasConflict = newTimes.some((t, i) => p.times[i] && p.times[i] !== t);
     if (hasConflict && !confirm("Bestehende Zeit-Labels werden überschrieben. Fortfahren?")) {
       return;
     }
 
-    state.rowCount = requiredRowCount(state.rowCount, newTimes.length);
-    state.times = mergeTimes(state.times, newTimes);
-    saveState();
+    p.rowCount = requiredRowCount(p.rowCount, newTimes.length);
+    p.times = mergeTimes(p.times, newTimes);
+    persist();
     renderBody();
     closeTimeModal();
   }
+
+  // --- Row / reset actions -------------------------------------------------
+
+  function addRow() {
+    plan().rowCount += 1;
+    persist();
+    renderBody();
+  }
+
+  function resetAll() {
+    if (!confirm("Wirklich diesen Stundenplan zurücksetzen? Das kann nicht rückgängig gemacht werden.")) {
+      return;
+    }
+    const p = plan();
+    p.rowCount = INITIAL_ROW_COUNT;
+    p.times = [];
+    p.entries = {};
+    persist();
+    renderBody();
+  }
+
+  // --- Plan management -------------------------------------------------
+
+  function nextDefaultPlanName() {
+    const base = "Neuer Plan";
+    const existingNames = new Set(Object.values(store.plans).map((p) => p.name));
+    if (!existingNames.has(base)) return base;
+    let i = 2;
+    while (existingNames.has(`${base} ${i}`)) i += 1;
+    return `${base} ${i}`;
+  }
+
+  function focusPlanTitleForRename() {
+    planTitleEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(planTitleEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // --- Export / Import -------------------------------------------------
+
+  function slugify(name) {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüß]+/gi, "-")
+      .replace(/^-+|-+$/g, "");
+    return slug || "stundenplan";
+  }
+
+  function exportPlan() {
+    const json = serializePlan(plan());
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slugify(plan().name)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importPlanFromFile(file) {
+    const text = await file.text();
+    const imported = parsePlanImport(text);
+    const newPlan = createEmptyPlan(imported.name);
+    newPlan.rowCount = imported.rowCount;
+    newPlan.times = imported.times;
+    newPlan.entries = imported.entries;
+    addPlan(store, newPlan);
+    persist();
+    renderAll();
+  }
+
+  // --- Event wiring -------------------------------------------------
 
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
@@ -273,6 +456,60 @@ import {
     if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
   });
 
+  planSwitcher.addEventListener("change", () => {
+    switchPlan(store, planSwitcher.value);
+    persist();
+    renderAll();
+  });
+
+  newPlanBtn.addEventListener("click", () => {
+    const newPlan = createEmptyPlan(nextDefaultPlanName());
+    addPlan(store, newPlan);
+    persist();
+    renderAll();
+    focusPlanTitleForRename();
+  });
+
+  deletePlanBtn.addEventListener("click", () => {
+    if (store.planOrder.length <= 1) return;
+    const p = plan();
+    if (!confirm(`Stundenplan "${p.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) {
+      return;
+    }
+    removePlan(store, p.id);
+    persist();
+    renderAll();
+  });
+
+  planTitleEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      planTitleEl.blur();
+    }
+  });
+
+  planTitleEl.addEventListener("blur", () => {
+    const name = planTitleEl.textContent.trim() || DEFAULT_PLAN_NAME;
+    planTitleEl.textContent = name;
+    renamePlan(store, store.activePlanId, name);
+    persist();
+    renderPlanSwitcher();
+    document.title = `${name} · Stundenplan`;
+  });
+
+  exportBtn.addEventListener("click", exportPlan);
+  importBtn.addEventListener("click", () => importFileInput.click());
+  importFileInput.addEventListener("change", async () => {
+    const file = importFileInput.files[0];
+    importFileInput.value = "";
+    if (!file) return;
+    try {
+      await importPlanFromFile(file);
+    } catch (err) {
+      alert(err.message || "Import fehlgeschlagen.");
+    }
+  });
+
   renderHeader();
-  renderBody();
+  renderAll();
 })();

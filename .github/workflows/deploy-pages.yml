@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/stundenplan-app-2kqs1h
   workflow_dispatch:
 
 permissions:

@@ -33,23 +33,89 @@ body {
 
 .app-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
   padding: 20px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.plan-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-switcher {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--text);
+  max-width: 200px;
+}
+
+.icon-btn {
+  border: none;
+  background: #eceef5;
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  opacity: 0.85;
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .app-header h1 {
   font-size: 1.4rem;
   margin: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px dashed transparent;
+  outline: none;
+  cursor: text;
+}
+
+.app-header h1:hover {
+  border-color: var(--border);
+}
+
+.app-header h1:focus {
+  border-color: var(--accent);
+  background: #f2f2fb;
 }
 
 .app-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.hint-text {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
 }
 
 .btn {
@@ -168,6 +234,16 @@ tbody td {
 
 .data-cell.filled:hover {
   background: #e3e6ff;
+}
+
+.data-cell.selecting {
+  background: #d6dcff;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+body.no-select {
+  user-select: none;
 }
 
 .entry-title {
@@ -325,7 +401,7 @@ tbody td {
 }
 
 @media (max-width: 600px) {
-  .app-header {
+  .header-top {
     flex-direction: column;
     align-items: flex-start;
   }
