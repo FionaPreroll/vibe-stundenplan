@@ -298,6 +298,27 @@ export function isDayNameTaken(days, name, excludeIndex) {
   return days.some((d, i) => i !== excludeIndex && d === name);
 }
 
+// Swaps each day name that still matches its language's default weekday
+// name at that column position (i.e. the user never renamed it) over to the
+// new language's default at the same position — a column the user did
+// rename is left untouched, since it's no longer "the default", just text
+// that happens to be a day name. Skips a swap that would collide with
+// another column's final name, to preserve the app's no-duplicate-day-names
+// invariant (see isDayNameTaken).
+export function translateDefaultDayNames(days, oldDefaults, newDefaults) {
+  const result = days.slice();
+  const taken = new Set(days);
+  days.forEach((day, i) => {
+    if (day !== oldDefaults[i]) return;
+    const candidate = newDefaults[i];
+    if (candidate === undefined || candidate === day || taken.has(candidate)) return;
+    taken.delete(day);
+    taken.add(candidate);
+    result[i] = candidate;
+  });
+  return result;
+}
+
 // --- Manual column widths -------------------------------------------------
 // Day columns are resizable (see the col-resize-handle wiring in app.js);
 // widths are kept in a day-name-keyed map on the plan, so they need the same

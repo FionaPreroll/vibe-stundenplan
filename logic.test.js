@@ -27,6 +27,7 @@ import {
   isDayNameTaken,
   renameDayWidth,
   removeDayWidth,
+  translateDefaultDayNames,
 } from "./logic.js";
 
 test("cellKey builds a stable row/day key", () => {
@@ -345,4 +346,38 @@ test("removeDayWidth drops the stored width for a removed day", () => {
   assert.deepEqual(removeDayWidth(widths, "Montag"), { Dienstag: 120 });
   assert.deepEqual(removeDayWidth(widths, "Freitag"), widths); // no-op if absent
   assert.deepEqual(removeDayWidth(null, "Montag"), {});
+});
+
+const DE_DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const EN_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+test("translateDefaultDayNames swaps every still-default day name to the new language", () => {
+  assert.deepEqual(translateDefaultDayNames(DE_DAYS, DE_DAYS, EN_DAYS), EN_DAYS);
+});
+
+test("translateDefaultDayNames leaves a manually-renamed column untouched", () => {
+  const days = ["Montag", "Lerntag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  const result = translateDefaultDayNames(days, DE_DAYS, EN_DAYS);
+  assert.deepEqual(result, ["Monday", "Lerntag", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+});
+
+test("translateDefaultDayNames ignores extra columns beyond the default weekday list", () => {
+  const days = [...DE_DAYS, "Bonustag"];
+  const result = translateDefaultDayNames(days, DE_DAYS, EN_DAYS);
+  assert.deepEqual(result, [...EN_DAYS, "Bonustag"]);
+});
+
+test("translateDefaultDayNames skips a swap that would collide with another column's name", () => {
+  // Dienstag was manually renamed to "Monday" ahead of time; swapping Montag -> Monday
+  // would collide, so Montag is left as-is instead of creating a duplicate.
+  const days = ["Montag", "Monday", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  const result = translateDefaultDayNames(days, DE_DAYS, EN_DAYS);
+  assert.equal(result[0], "Montag");
+  assert.equal(result[1], "Monday");
+  assert.deepEqual(result.slice(2), ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+});
+
+test("translateDefaultDayNames is a no-op when nothing matches the old defaults", () => {
+  const days = ["A", "B", "C", "D", "E", "F", "G"];
+  assert.deepEqual(translateDefaultDayNames(days, DE_DAYS, EN_DAYS), days);
 });

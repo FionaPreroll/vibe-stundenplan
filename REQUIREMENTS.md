@@ -236,13 +236,27 @@ Anwenden eines Presets/Rasters:
   konservativ auf Englisch defaulten als anzunehmen, jeder Deutsch-Text-Leser habe eine
   deutsche Systemsprache.
 - Die gewählte Sprache wird pro Browser (nicht pro Plan) in `localStorage` gespeichert und
-  bleibt über Reloads erhalten; jeder Plan kann trotzdem eigene, davon unabhängige
-  Tagesnamen und einen eigenen Titel in beliebiger Sprache/Formulierung haben.
+  bleibt über Reloads erhalten; jeder Plan kann trotzdem einen eigenen Titel in beliebiger
+  Sprache/Formulierung haben.
 - Übersetzt werden: alle Button-/Label-/Platzhalter-Texte, Modal-Titel, Confirm-/Alert-
   Dialoge, Fehlermeldungen, sowie die *Standardwerte* für neue Pläne/Spalten (Plannamen,
   Tagesnamen). **Nicht** automatisch übersetzt werden vom Nutzer selbst eingegebene Inhalte
   (Termin-Titel, Beschreibungen, umbenannte Spalten-/Plannamen) — das sind freie
   Texteingaben, keine UI-Strings.
+- **Bestehende Tagesspalten beim Sprachwechsel:** Ein Spaltenname, der noch exakt dem
+  Standard-Wochentagsnamen der *bisherigen* Sprache an seiner Position entspricht (der Nutzer
+  hat ihn also nie umbenannt), wird beim Umschalten auf den Standardnamen der *neuen* Sprache
+  an derselben Position aktualisiert — z. B. wird aus "Montag" beim Wechsel zu Englisch
+  automatisch "Monday". Eine manuell umbenannte Spalte (z. B. "Lerntag" statt "Montag") gilt
+  nicht mehr als "Standard" und bleibt unverändert, da es dann freier Text ist, kein
+  UI-String mehr. Das gilt plan-übergreifend (alle gespeicherten Pläne, nicht nur der aktive)
+  und für Spalten jenseits der ersten 7 (z. B. eine hinzugefügte 8. Spalte), die ohnehin nie
+  einem Wochentags-Default entsprechen und daher unangetastet bleiben. Einträge und manuell
+  gesetzte Spaltenbreiten (Punkt 18) an einer übersetzten Spalte werden mit umgehängt
+  (`translateDefaultDayNames` in `logic.js`, nutzt intern dieselbe Umhäng-Logik wie eine
+  manuelle Umbenennung). Eine Übersetzung, die zu einem Namenskonflikt mit einer anderen
+  Spalte führen würde, wird übersprungen (die Spalte behält ihren alten Namen), um die
+  Eindeutigkeits-Invariante der Spaltennamen nicht zu verletzen.
 - Architektur: ein zentrales Wörterbuch (`i18n.js`, `{ de: {...}, en: {...} }`) plus ein
   `translate(language, key, params)`-Helfer mit `{param}`-Interpolation. Kein
   i18n-Framework, keine zusätzliche Laufzeit-Abhängigkeit. Details zur Konvention (wie neue

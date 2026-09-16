@@ -21,6 +21,7 @@ import {
   isDayNameTaken,
   renameDayWidth,
   removeDayWidth,
+  translateDefaultDayNames,
 } from "./logic.js";
 import { serializePlan, parsePlanImport } from "./io.js";
 import {
@@ -38,7 +39,7 @@ import {
   createEmptyPlan,
   INITIAL_ROW_COUNT,
 } from "./store.js";
-import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.js";
+import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.js";
 
 (() => {
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
@@ -653,6 +654,21 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
   // --- Day column management ---------------------------------------------
 
+  // Swaps a plan's still-default weekday column names to the new language,
+  // leaving any manually-renamed columns untouched (see
+  // translateDefaultDayNames in logic.js). Mutates the plan's days/entries/
+  // columnWidths in place, like the other day-column operations here.
+  function translatePlanDayNames(p, oldDefaults, newDefaults) {
+    const newDays = translateDefaultDayNames(p.days, oldDefaults, newDefaults);
+    newDays.forEach((newName, i) => {
+      const oldName = p.days[i];
+      if (newName === oldName) return;
+      p.entries = renameDayEntries(p.entries, oldName, newName);
+      p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
+    });
+    p.days = newDays;
+  }
+
   function nextDefaultDayName(days) {
     const base = t("newDayName");
     let i = days.length + 1;
@@ -860,7 +876,16 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
   });
 
   languageSwitcher.addEventListener("change", () => {
-    setLanguage(store, languageSwitcher.value);
+    const oldLanguage = getLanguage(store);
+    const newLanguage = languageSwitcher.value;
+
+    if (newLanguage !== oldLanguage) {
+      const oldDefaults = DAYS_BY_LANGUAGE[oldLanguage] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE];
+      const newDefaults = DAYS_BY_LANGUAGE[newLanguage] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE];
+      Object.values(store.plans).forEach((p) => translatePlanDayNames(p, oldDefaults, newDefaults));
+    }
+
+    setLanguage(store, newLanguage);
     persist();
     renderAll();
   });
