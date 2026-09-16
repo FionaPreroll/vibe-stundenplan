@@ -497,6 +497,55 @@ Applying a preset/grid:
 - Always hidden in print (item 15) regardless of collapsed state, like every other
   interactive header control.
 
+### 23. Short day names on narrow screens
+
+- Below the same width where the table already needs to scroll (its own `min-width: 600px`
+  floor, item 17), day columns are squeezed to their `min-width: 88px` floor — too narrow for
+  a full weekday name, which used to wrap into a stack of single words ("Wedn/esday").
+- A column whose name still matches the *current* UI language's default weekday name exactly
+  (same "is this still a default" check `translateDefaultDayNames`, item 12, uses) shows a
+  proper language-specific abbreviation instead — German two-letter (Mo/Di/Mi/...), English
+  three-letter (Mon/Tue/Wed/...), from `DAYS_SHORT_BY_LANGUAGE` in `i18n.js`. A manually
+  renamed/custom column has no language-correct abbreviation to fall back to, so it keeps
+  showing (and wrapping) its full text exactly as before — unchanged behavior for that case.
+- Implementation keeps a single source of truth for the name: the existing `contenteditable`
+  `.day-name` span is still the only place the real value lives and is edited. A second,
+  non-editable `.day-name-short` span sits next to it; `style.css` shows only one of the two
+  depending on viewport width. Below the breakpoint, `.day-name` is `display: none` — and
+  since a hidden element can't receive focus, tapping the visible short label calls the same
+  `focusAndSelect()` helper used elsewhere (e.g. a newly added column) to reveal and focus the
+  real span for renaming, toggling an `editing` class on `.day-col-inner` that both `style.css`
+  and `wireDayRename`'s focus/blur handlers coordinate on.
+
+### 24. Touch support for multi-timeslot entries
+
+- **Trigger:** drag-to-select a multi-row entry (item 4) was mouse-only —
+  `mousedown`/`mouseenter`/`mouseup` don't fire the way this code needs them to for a finger
+  drag (touch has no hover, so per-cell `mouseenter` never fires while dragging a touch
+  point across cells).
+- **Why not just handle `touchmove` from the first touch:** a vertical swipe over the table is
+  also how a touch user scrolls the page past it. Intercepting `touchmove` (with
+  `preventDefault()`) from the very first touch would make that impossible — every attempt to
+  scroll past the table would instead start a selection.
+- **Long-press to arm, then drag:** touching a cell starts a 350ms timer
+  (`LONG_PRESS_MS` in `app.js`) instead of immediately reacting. If the finger moves more than
+  `TOUCH_MOVE_CANCEL_PX` (10px) before the timer fires, that's a scroll swipe, not a
+  long-press — the timer is cancelled and nothing else happens, so native scrolling is never
+  interfered with. If the timer fires undisturbed, drag-select mode arms (the anchor cell
+  highlights immediately, plus a short `navigator.vibrate()` pulse where supported) and *from
+  that point on* `touchmove` is tracked (with `preventDefault()`) the same way mouse-drag
+  already was — via `document.elementFromPoint(touch.clientX, touch.clientY)` at each move,
+  since touch delivers all its events to wherever the touch started rather than firing
+  hover-style events on whatever's currently underneath the finger.
+- **A quick tap needs no special handling at all:** since a short tap never arms drag-select
+  (the long-press timer gets torn down by `touchend` before it fires) and touch-start is a
+  passive listener that never calls `preventDefault()` for that case, the browser's own
+  synthetic mouse events (a real, standard behavior for untouched taps) reach the exact same
+  `mousedown`/`mouseup` handlers a desktop click already uses — so a plain tap opens the entry
+  modal for one cell exactly as it always has, no touch-specific code path needed for it.
+- The hint text now mentions this ("press and hold first on touch") — a long-press has no
+  visual affordance hinting it's possible, unlike a mouse drag.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly

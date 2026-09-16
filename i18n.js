@@ -10,6 +10,17 @@ export const DAYS_BY_LANGUAGE = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
 };
 
+// Conventional abbreviations for the defaults above, same index order —
+// German's are two letters (Mo/Di/...), English's three (Mon/Tue/...), each
+// following that language's own everyday convention rather than a uniform
+// character count. Only meaningful for a column that's still an untouched
+// default (see shortDayLabel in app.js); a custom/renamed column has no
+// language-correct abbreviation to fall back to.
+export const DAYS_SHORT_BY_LANGUAGE = {
+  de: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
+  en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+};
+
 // Sunday-first, matching Date#getDay()'s 0=Sunday indexing — used to detect
 // "today" for the now-highlight, independent of a plan's actual day names.
 export const WEEKDAYS_BY_LANGUAGE = {
@@ -57,7 +68,7 @@ const STRINGS = {
     printBtn: "🖨 Drucken",
     editIconsToggleLabel: "Bearbeitungssymbole anzeigen",
     hintText:
-      "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin.",
+      "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin (auf Touch-Geräten erst gedrückt halten).",
     timeColHeader: "Zeit",
     timeInputPlaceholder: "z. B. 08:00–08:45",
     addDayColTitle: "Spalte hinzufügen",
@@ -144,7 +155,8 @@ const STRINGS = {
     resetBtn: "Reset",
     printBtn: "🖨 Print",
     editIconsToggleLabel: "Show edit icons",
-    hintText: "Tip: click a cell to add an entry, or drag across several time slots for a longer one.",
+    hintText:
+      "Tip: click a cell to add an entry, or drag across several time slots for a longer one (press and hold first on touch).",
     timeColHeader: "Time",
     timeInputPlaceholder: "e.g. 08:00–08:45",
     addDayColTitle: "Add column",

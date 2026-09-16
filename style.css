@@ -418,6 +418,23 @@ thead th {
   color: var(--text);
 }
 
+/* Shown instead of .day-name only below the breakpoint in the media query
+   further down — a short label for a default weekday name (see
+   shortDayLabel in app.js) so it doesn't wrap into a stack of single
+   words on a narrow screen. Not itself contenteditable; tapping it
+   reveals + focuses the real .day-name for renaming (app.js toggles
+   .day-col-inner's "editing" class). */
+.day-name-short {
+  display: none;
+  border-radius: 4px;
+  padding: 1px 3px;
+  cursor: pointer;
+}
+
+.day-name-short:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
 .col-remove-btn {
   flex: 0 0 auto;
   border: none;
@@ -784,6 +801,26 @@ body.no-select {
   body.toolbar-collapsed #themeSwitcher,
   body.toolbar-collapsed #languageSwitcher {
     display: none !important;
+  }
+
+  /* Below this width the table itself is already down to its min-width
+     floor and scrolling (see table's own min-width: 600px above), so day
+     columns are as narrow as they get — swap in the short label instead
+     of letting a full weekday name wrap into a stack of single words. */
+  .day-name {
+    display: none;
+  }
+
+  .day-name-short {
+    display: inline;
+  }
+
+  .day-col-inner.editing .day-name {
+    display: inline;
+  }
+
+  .day-col-inner.editing .day-name-short {
+    display: none;
   }
 }
 

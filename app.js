@@ -43,7 +43,14 @@ import {
   createEmptyPlan,
   INITIAL_ROW_COUNT,
 } from "./store.js";
-import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.js";
+import {
+  DAYS_BY_LANGUAGE,
+  DAYS_SHORT_BY_LANGUAGE,
+  DEFAULT_LANGUAGE,
+  WEEKDAYS_BY_LANGUAGE,
+  detectDefaultLanguage,
+  translate,
+} from "./i18n.js";
 
 (() => {
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
@@ -123,6 +130,17 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   }
   const RAINBOW = rainbowPalette();
 
+  // Only a still-default weekday name (exact match against the current
+  // language's defaults, same rule translateDefaultDayNames uses) has a
+  // language-correct abbreviation; a custom/renamed column just keeps its
+  // full text and wraps as usual — there's no good way to guess a short
+  // form for arbitrary user text.
+  function shortDayLabel(day, language) {
+    const idx = DAYS_BY_LANGUAGE[language]?.indexOf(day);
+    if (idx === undefined || idx === -1) return day;
+    return DAYS_SHORT_BY_LANGUAGE[language][idx];
+  }
+
   // --- i18n ---------------------------------------------------------------
 
   function applyStaticTranslations() {
@@ -200,6 +218,17 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
       nameEl.title = t("renameHint");
       wireDayRename(nameEl, index);
       inner.appendChild(nameEl);
+
+      // Shown instead of nameEl only below a width breakpoint (style.css),
+      // so a default weekday name doesn't wrap into an unreadable stack of
+      // single words on a narrow screen. Not editable itself — tapping it
+      // reveals and focuses the real (full-name) nameEl above.
+      const shortEl = document.createElement("span");
+      shortEl.className = "day-name-short";
+      shortEl.setAttribute("aria-hidden", "true");
+      shortEl.textContent = shortDayLabel(day, getLanguage(store));
+      shortEl.addEventListener("click", () => focusAndSelect(nameEl));
+      inner.appendChild(shortEl);
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
@@ -447,7 +476,101 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
       dragState.currentRow = row;
       highlightSelection(dragState.day, dragState.anchorRow, row);
     });
+
+    wireCellSelectionTouch(td, row, day);
   }
+
+  // Touch has no hover, so a plain per-cell "mouseenter" can't track a
+  // finger dragging across cells — and a touchmove listener that always
+  // preventDefault()s from the first touch would break ordinary page
+  // scrolling over the table. Long-press to arm drag-select instead: a
+  // quick tap/swipe never triggers the timer below, so it falls through to
+  // the browser's own synthetic mouse events (mousedown/mouseup) already
+  // wired above, which already do the right thing for a single tap. Only
+  // once the press has held still past LONG_PRESS_MS do we take over
+  // touchmove (with preventDefault) to track the drag.
+  const LONG_PRESS_MS = 350;
+  const TOUCH_MOVE_CANCEL_PX = 10;
+  let touchPressTimer = null;
+  let touchPressStart = null; // { x, y }
+  let touchDragActive = false;
+
+  function wireCellSelectionTouch(td, row, day) {
+    td.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        touchPressStart = { x: touch.clientX, y: touch.clientY };
+        touchDragActive = false;
+        clearTimeout(touchPressTimer);
+        touchPressTimer = setTimeout(() => {
+          touchDragActive = true;
+          dragState = { day, anchorRow: row, currentRow: row };
+          document.body.classList.add("no-select");
+          highlightSelection(day, row, row);
+          navigator.vibrate?.(15);
+        }, LONG_PRESS_MS);
+      },
+      { passive: true }
+    );
+  }
+
+  function cellFromTouchPoint(x, y) {
+    return document.elementFromPoint(x, y)?.closest("td.data-cell") || null;
+  }
+
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      if (touchDragActive && dragState) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const cell = cellFromTouchPoint(touch.clientX, touch.clientY);
+        if (!cell || cell.dataset.day !== dragState.day) return;
+        dragState.currentRow = Number(cell.dataset.row);
+        highlightSelection(dragState.day, dragState.anchorRow, dragState.currentRow);
+        return;
+      }
+      if (touchPressTimer && touchPressStart) {
+        const touch = e.touches[0];
+        const moved = Math.hypot(touch.clientX - touchPressStart.x, touch.clientY - touchPressStart.y);
+        if (moved > TOUCH_MOVE_CANCEL_PX) {
+          clearTimeout(touchPressTimer);
+          touchPressTimer = null;
+          touchPressStart = null;
+        }
+      }
+    },
+    { passive: false }
+  );
+
+  function endTouchDrag() {
+    clearTimeout(touchPressTimer);
+    touchPressTimer = null;
+    touchPressStart = null;
+    if (!touchDragActive) return;
+    touchDragActive = false;
+    if (!dragState) return;
+    const { day, anchorRow, currentRow } = dragState;
+    dragState = null;
+    document.body.classList.remove("no-select");
+    clearHighlight();
+    finalizeSelection(day, anchorRow, currentRow);
+  }
+
+  document.addEventListener("touchend", endTouchDrag);
+  document.addEventListener("touchcancel", () => {
+    clearTimeout(touchPressTimer);
+    touchPressTimer = null;
+    touchPressStart = null;
+    if (touchDragActive) {
+      touchDragActive = false;
+      dragState = null;
+      document.body.classList.remove("no-select");
+      clearHighlight();
+    }
+  });
 
   function clearHighlight() {
     planBody.querySelectorAll(".data-cell.selecting").forEach((el) => el.classList.remove("selecting"));
@@ -761,7 +884,15 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
       }
     });
 
+    // Below the day-name-short breakpoint, nameEl itself is hidden until
+    // this "editing" class is set (style.css) — so tapping the short label
+    // above can reveal + focus it, and it hides again once done.
+    nameEl.addEventListener("focus", () => {
+      nameEl.closest(".day-col-inner")?.classList.add("editing");
+    });
+
     nameEl.addEventListener("blur", () => {
+      nameEl.closest(".day-col-inner")?.classList.remove("editing");
       const p = plan();
       const oldName = p.days[index];
       const newName = nameEl.textContent.trim();
@@ -786,6 +917,11 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   }
 
   function focusAndSelect(el) {
+    // A day name can be display:none below the day-name-short breakpoint
+    // until "editing" is set (style.css) — .focus() on a hidden element is
+    // a no-op, so reveal it first. No-op for anything that isn't inside a
+    // .day-col-inner (e.g. the plan title).
+    el.closest(".day-col-inner")?.classList.add("editing");
     el.focus();
     const range = document.createRange();
     range.selectNodeContents(el);
