@@ -18,7 +18,8 @@ Backend. Deutsch und Englisch werden vollständig unterstützt.
   Start-/Endzeit unabhängig vom Raster (visuell innerhalb der Zelle eingerückt)
 - Live-Hervorhebung des aktuellen Zeitfensters und Wochentags
 - Mehrere Stundenpläne parallel verwalten und wechseln
-- Export/Import als lesbares JSON
+- Export/Import als lesbares JSON — Format spezifiziert in
+  [EXPORT_FORMAT.md](EXPORT_FORMAT.md)
 - Deutsch/Englisch umschaltbar, inkl. automatischer Erkennung der Browsersprache
 - Vollständig tastaturbedienbar (Enter speichert, Escape verwirft)
 

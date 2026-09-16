@@ -177,6 +177,8 @@ Anwenden eines Presets/Rasters:
 - Export lädt den aktiven Plan als eingerücktes, für Menschen lesbares/editierbares JSON
   herunter, Dateiname aus dem (slugifizierten) Plannamen.
 - JSON-Form: `{ app: "vibe-stundenplan", version: 1, plan: { name, days, rowCount, times, entries } }`.
+  Vollständige Feld-für-Feld-Spezifikation inkl. Fallback-Regeln und JSON-Schema-Entwurf:
+  siehe [EXPORT_FORMAT.md](EXPORT_FORMAT.md).
 - Import liest so eine Datei und legt sie als **neuen** Plan an (überschreibt nie einen
   bestehenden Plan), wechselt danach automatisch dorthin.
 - Import ist defensiv: fehlende/kaputte Felder fallen auf sinnvolle, sprachabhängige

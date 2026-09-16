@@ -9,7 +9,7 @@ Zufall sind).
 | Datei | Verantwortung | Testbar? |
 |---|---|---|
 | `logic.js` | Reine Stundenplan-Logik: Zeitraster, mehrzeilige Termine, Zeilen/Spalten-Operationen. Kein DOM, kein `localStorage`, kein `window`. | Ja — `logic.test.js` |
-| `io.js` | Export/Import-Serialisierung eines Plans (JSON). Reine Funktionen, nimmt Sprache als Parameter statt sie selbst zu bestimmen. | Ja — `io.test.js` |
+| `io.js` | Export/Import-Serialisierung eines Plans (JSON, spezifiziert in [EXPORT_FORMAT.md](EXPORT_FORMAT.md)). Reine Funktionen, nimmt Sprache als Parameter statt sie selbst zu bestimmen. | Ja — `io.test.js` |
 | `store.js` | Persistenz mehrerer Pläne + Sprachwahl. `localStorage`-Zugriff ist über einen `storage`-Parameter injizierbar (Tests nutzen ein In-Memory-Fake). | Ja — `store.test.js` |
 | `i18n.js` | String-Wörterbuch (DE/EN) + kleine reine Helper (`translate`, `detectDefaultLanguage`). Kein Framework. | Ja — `i18n.test.js` |
 | `app.js` | DOM-Controller: Rendering, Event-Wiring, verbindet die obigen Module mit der Seite. Einziges Modul, das `document`/`window` anfasst. | Nein, siehe unten |
@@ -102,10 +102,13 @@ einhalten: nie im ausgelieferten App-Code, nie in `npm test` nötig.
   err.message)`). So bleiben die Logik-Module sprachneutral und testbar, ohne dass Tests
   deutsche oder englische Fehlertexte pattern-matchen müssen.
 - Tagesnamen-Defaults (`DAYS_BY_LANGUAGE`) und die Wochentag-Zuordnung für die
-  Jetzt-Hervorhebung (`WEEKDAYS_BY_LANGUAGE`) sind sprachabhängig, aber **rein für neue
-  Pläne/Spalten** — ein Sprachwechsel benennt nie automatisch die Tagesspalten eines
-  bestehenden Plans um (das wäre stille Datenmanipulation). Nutzer können Spalten jederzeit
-  manuell umbenennen.
+  Jetzt-Hervorhebung (`WEEKDAYS_BY_LANGUAGE`) sind sprachabhängig — sie bestimmen sowohl die
+  Default-Tagesnamen neuer Pläne/Spalten als auch, welche bestehenden Spalten ein
+  Sprachwechsel umbenennt: Eine Spalte, die noch exakt ihrem alten Standard-Wochentagsnamen an
+  ihrer Position entspricht, wird auf den neuen Standardnamen an derselben Position
+  aktualisiert (`translateDefaultDayNames` in `logic.js`); eine manuell umbenannte Spalte ist
+  ab dem Zeitpunkt freier Text und bleibt unangetastet. Details und die
+  Kollisions-Absicherung: REQUIREMENTS.md, Abschnitt 12.
 
 ## Checkliste für ein neues Feature
 
@@ -113,6 +116,9 @@ einhalten: nie im ausgelieferten App-Code, nie in `npm test` nötig.
    mit Unit-Tests.
 2. Neue Strings in `i18n.js`, beide Sprachen.
 3. DOM-Verdrahtung in `app.js` + ggf. Markup/`data-i18n`-Attribute in `index.html`.
-4. Manueller Playwright-Durchlauf der betroffenen Interaktion (siehe Test-Philosophie oben).
-5. `npm test` grün, dann committen. CI (`ci.yml`) und Deploy (`deploy-pages.yml`) laufen
+4. Ändert das Feature die `plan`-Struktur (neues Feld, geändertes `entries`-Format o. Ä.):
+   [EXPORT_FORMAT.md](EXPORT_FORMAT.md) entsprechend nachziehen — das ist die einzige Stelle,
+   die das Export/Import-JSON-Format vollständig spezifiziert.
+5. Manueller Playwright-Durchlauf der betroffenen Interaktion (siehe Test-Philosophie oben).
+6. `npm test` grün, dann committen. CI (`ci.yml`) und Deploy (`deploy-pages.yml`) laufen
    automatisch bei Push auf `main`.
