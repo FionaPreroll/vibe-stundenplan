@@ -1,35 +1,50 @@
 # Export/Import JSON Format
 
-Specification of the file format the "Export"/"Import" button produces and reads
-(`io.js`: `serializePlan`/`parsePlanImport`). The format is deliberately **a flat,
+Specification of the file formats the "Export"/"Export all"/"Import" buttons produce and read
+(`io.js`: `serializePlan`/`parsePlanImport` for one plan, `serializeAllPlans`/
+`parseAllPlansImport` for every stored plan at once). Both formats are deliberately **flat,
 hand-readable and hand-editable JSON** — no binary format, no compression, no hidden fields.
 Anyone who wants to can open an export file in a text editor, add entries by hand, and import
 the file again.
 
-Current format version: **1** (`EXPORT_FORMAT_VERSION` in `io.js`).
+Current format version: **1** (`EXPORT_FORMAT_VERSION` in `io.js`) — shared by both formats;
+see "Top-level structure" below for what actually distinguishes them.
 
 ## Compatibility guarantee
 
 - `app` and `version` are written on export but **not checked on import** — `parsePlanImport`
-  only requires a `plan` object to be present (see below). A file with no `app`/`version`
-  field at all imports just the same as one with a wrong value. That's intentional: the
-  format should also accept hand-assembled JSON files, or ones exported by other tools, as
-  long as the `plan` structure fits.
+  only requires a `plan` object to be present, and `parseAllPlansImport` only a non-empty
+  `plans` array (see below). A file with no `app`/`version` field at all imports just the same
+  as one with a wrong value. That's intentional: the format should also accept hand-assembled
+  JSON files, or ones exported by other tools, as long as the `plan`/`plans` structure fits.
 - Import is **defensive, never crashes**: if a field is missing or has the wrong type, a safe
-  default is substituted (see the table below) instead of an error. Only two cases really
-  abort the import (with a translatable error message):
+  default is substituted (see the table below) instead of an error — for an all-plans file,
+  this applies independently to every element of `plans`, so one malformed plan in the array
+  doesn't block the others. Only two cases really abort an import (with a translatable error
+  message):
   - The file isn't valid JSON → error code `errorInvalidJson`.
-  - The JSON has no `plan` object (missing, `null`, or not an object) → error code
-    `errorMissingPlanField`.
-- Import always creates a **new** plan and switches to it afterwards — an existing plan is
-  never overwritten.
-- Purely internal state that isn't part of the plan's *content* is deliberately **not**
+  - The JSON has neither a `plan` object nor a non-empty `plans` array → error code
+    `errorMissingPlanField` (single-plan import) or `errorMissingPlansField` (all-plans
+    import), depending on which one was attempted (see "Choosing a format" below).
+- Import always creates **new** plans and switches to the last one imported afterwards — an
+  existing plan is never overwritten, whether importing one plan or all of them.
+- Purely internal state that isn't part of a plan's *content* is deliberately **not**
   exported: the internal plan `id` (would get a new one on import anyway), and
   `columnWidths`/`timeColWidth` (manually set column widths, see REQUIREMENTS.md section 18)
   — an imported file therefore renders at the default column width, even if the original
   column was set wider at export time.
 
-## Top-level structure
+## Choosing a format on import
+
+There is only one "Import" button/file picker; it decides which parser to use by inspecting
+the parsed JSON itself, before validating anything else: a top-level `plans` array (any
+length, including an empty one) routes to `parseAllPlansImport`, anything else routes to
+`parsePlanImport`. So an all-plans file with `"plans": []` still reports
+`errorMissingPlansField` rather than silently falling through to the single-plan parser and
+reporting `errorMissingPlanField` instead — the shape it detected decides which error it can
+raise.
+
+## Top-level structure: single plan
 
 ```json
 {
@@ -65,7 +80,51 @@ which only affects plans already in the store, not import). Day-name uniqueness 
 columns with the same name) is **not** enforced on import — that's an in-app rule, not a
 format rule.
 
+## Top-level structure: all plans
+
+Produced by "Export all", read back by "Import" when it detects a `plans` array (see
+"Choosing a format" above). A `plans` array of the same per-plan objects `plan` holds above,
+in the store's plan order:
+
+```json
+{
+  "app": "vibe-stundenplan",
+  "version": 1,
+  "plans": [
+    {
+      "name": "Winter Semester",
+      "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "rowCount": 8,
+      "times": ["08:00–09:30", "09:45–11:15", "..."],
+      "entries": { "0_Monday": { "title": "Analysis", "description": "Lecture, Room 1", "link": "" } }
+    },
+    {
+      "name": "Summer Semester",
+      "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "rowCount": 6,
+      "times": [],
+      "entries": {}
+    }
+  ]
+}
+```
+
+| Field     | Type                    | Checked on import? | Fallback for a missing/invalid value                                |
+| --------- | ------------------------ | ------------------- | ---------------------------------------------------------------------- |
+| `plans`   | non-empty `array`         | **yes, required**    | missing/empty/not an array → import aborts (`errorMissingPlansField`) |
+| `plans[i]`| `object` (each element)   | yes, per element     | not an object → treated as `{}`, i.e. every field below falls back    |
+
+Every element of `plans` follows the exact same per-field rules as `plan` in the single-plan
+format above (`name`, `days`, `rowCount`, `times`, `entries`) — applied independently per
+element, so one malformed plan in the array doesn't affect the others' fields or abort the
+whole import. Importing an all-plans file always **adds** that many new plans to the ones
+already stored; it never replaces or merges with an existing plan of the same name.
+
 ## `plan.entries`: key and value format
+
+Applies identically to every plan object, whether it's the top-level `plan` (single-plan
+format) or an element of `plans` (all-plans format) — both hold the exact same per-plan
+shape.
 
 `entries` is a flat map. Each key identifies an occupied cell:
 
@@ -142,20 +201,29 @@ shows the 10:00–12:30 range within those two rows (sub-raster inset).
 
 ## Machine-readable schema
 
-A [JSON Schema](https://json-schema.org/) (Draft 2020-12) for tools that want to validate the
-top-level structure and the known entry fields — deliberately doesn't cover the `entries` key
-format (`<row>_<day>`) or the "anchor row only" rule, since JSON Schema's vocabulary isn't
-enough for that (see the prose rules above):
+A [JSON Schema](https://json-schema.org/) (Draft 2020-12) for tools that want to validate
+either top-level structure and the known entry fields — deliberately doesn't cover the
+`entries` key format (`<row>_<day>`) or the "anchor row only" rule, since JSON Schema's
+vocabulary isn't enough for that (see the prose rules above). Matches a file if it has either
+a `plan` object or a `plans` array, each plan validated against the same shared definition:
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "vibe-stundenplan export",
   "type": "object",
-  "required": ["plan"],
+  "oneOf": [{ "required": ["plan"] }, { "required": ["plans"] }],
   "properties": {
     "app": { "type": "string" },
     "version": { "type": "number" },
+    "plan": { "$ref": "#/$defs/plan" },
+    "plans": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/plan" }
+    }
+  },
+  "$defs": {
     "plan": {
       "type": "object",
       "properties": {
@@ -192,13 +260,15 @@ enough for that (see the prose rules above):
 
 Note: this schema is stricter than the actual import code (which, e.g., doesn't abort even
 without a `title` or with a wrong `rowCount` type, but falls back to defaults instead — see
-the table above). It describes the format the app itself **writes**, not the full error
+the tables above). It describes the format the app itself **writes**, not the full error
 tolerance on **reading**.
 
 ## Source code reference
 
-- Export: `serializePlan` in `io.js`.
-- Import/validation: `parsePlanImport` in `io.js`.
+- Export: `serializePlan` (single plan) / `serializeAllPlans` (all plans) in `io.js`.
+- Import/validation: `parsePlanImport` (single plan) / `parseAllPlansImport` (all plans) in
+  `io.js`. `app.js`'s `importPlanFromFile` decides which one to call (see "Choosing a format"
+  above).
 - Entry field semantics: `computeEntryUpdate`, `getEntrySpan`, `cellKey`/`parseCellKey` in
   `logic.js`.
-- Tests covering this format, including all fallback cases: `io.test.js`.
+- Tests covering both formats, including all fallback cases: `io.test.js`.

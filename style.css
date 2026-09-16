@@ -866,6 +866,22 @@ body.no-select {
     cursor: default;
   }
 
+  /* The "now" highlight (current row/day-column/cell, item 11) is live UI
+     state, not part of the plan's printable content — a printout made at
+     14:32 shouldn't have that exact moment baked into it. */
+  .time-cell.current-row {
+    background: var(--time-cell-bg) !important;
+    box-shadow: none !important;
+  }
+
+  .data-cell.current-cell .entry-box {
+    outline: none !important;
+  }
+
+  th.day-col.current-day-col {
+    box-shadow: none !important;
+  }
+
   @page {
     size: landscape;
     margin: 1.2cm;

@@ -47,6 +47,7 @@ const STRINGS = {
     toolbarGroupGrid: "Raster",
     toolbarGroupView: "Ansicht",
     exportBtn: "Exportieren",
+    exportAllBtn: "Alle exportieren",
     importBtn: "Importieren",
     timePresetBtn: "Zeiten festlegen",
     addRowBtn: "+ Zeile hinzufügen",
@@ -105,6 +106,7 @@ const STRINGS = {
     errorLastPlanCannotBeDeleted: "Der letzte Stundenplan kann nicht gelöscht werden.",
     errorInvalidJson: "Ungültiges JSON: Die Datei konnte nicht gelesen werden.",
     errorMissingPlanField: 'Ungültiges Format: Feld "plan" fehlt.',
+    errorMissingPlansField: 'Ungültiges Format: Feld "plans" fehlt oder ist leer.',
 
     defaultPlanName: "Mein Stundenplan",
     newPlanName: "Neuer Plan",
@@ -131,6 +133,7 @@ const STRINGS = {
     toolbarGroupGrid: "Grid",
     toolbarGroupView: "View",
     exportBtn: "Export",
+    exportAllBtn: "Export all",
     importBtn: "Import",
     timePresetBtn: "Set time grid",
     addRowBtn: "+ Add row",
@@ -187,6 +190,7 @@ const STRINGS = {
     errorLastPlanCannotBeDeleted: "The last schedule can't be deleted.",
     errorInvalidJson: "Invalid JSON: the file couldn't be read.",
     errorMissingPlanField: 'Invalid format: the "plan" field is missing.',
+    errorMissingPlansField: 'Invalid format: the "plans" field is missing or empty.',
 
     defaultPlanName: "My Schedule",
     newPlanName: "New Schedule",

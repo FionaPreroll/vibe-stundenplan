@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { serializePlan, parsePlanImport, EXPORT_FORMAT_VERSION } from "./io.js";
+import { serializePlan, parsePlanImport, serializeAllPlans, parseAllPlansImport, EXPORT_FORMAT_VERSION } from "./io.js";
 import { DAYS_BY_LANGUAGE } from "./i18n.js";
 
 const samplePlan = {
@@ -88,4 +88,63 @@ test("parsePlanImport trims the plan name and coerces non-string time slots", ()
   );
   assert.equal(parsed.name, "Mein Plan");
   assert.deepEqual(parsed.times, ["08:00", "", ""]);
+});
+
+const secondPlan = {
+  id: "plan_ignored_2",
+  name: "Zweitplan",
+  days: ["Montag", "Dienstag"],
+  rowCount: 2,
+  times: ["09:00–09:45"],
+  entries: {},
+};
+
+const sampleStore = {
+  activePlanId: "plan_ignored_2",
+  planOrder: ["plan_ignored", "plan_ignored_2"],
+  plans: { plan_ignored: samplePlan, plan_ignored_2: secondPlan },
+};
+
+test("serializeAllPlans emits every plan in store order, without internal ids", () => {
+  const json = serializeAllPlans(sampleStore);
+  const data = JSON.parse(json);
+  assert.equal(data.app, "vibe-stundenplan");
+  assert.equal(data.version, EXPORT_FORMAT_VERSION);
+  assert.deepEqual(data.plans, [
+    { name: "Testplan", days: samplePlan.days, rowCount: 4, times: samplePlan.times, entries: samplePlan.entries },
+    { name: "Zweitplan", days: secondPlan.days, rowCount: 2, times: secondPlan.times, entries: secondPlan.entries },
+  ]);
+  assert.ok(json.includes("\n  "), "expected pretty-printed (indented) JSON");
+});
+
+test("serializeAllPlans skips a planOrder id with no matching plan", () => {
+  const json = serializeAllPlans({ planOrder: ["a", "missing"], plans: { a: samplePlan } });
+  assert.equal(JSON.parse(json).plans.length, 1);
+});
+
+test("parseAllPlansImport round-trips a serialized store", () => {
+  const json = serializeAllPlans(sampleStore);
+  const parsed = parseAllPlansImport(json);
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].name, "Testplan");
+  assert.equal(parsed[1].name, "Zweitplan");
+});
+
+test('parseAllPlansImport rejects invalid JSON and JSON missing/empty "plans"', () => {
+  assert.throws(() => parseAllPlansImport("{ not json"), { code: "errorInvalidJson" });
+  assert.throws(() => parseAllPlansImport(JSON.stringify({ app: "x" })), { code: "errorMissingPlansField" });
+  assert.throws(() => parseAllPlansImport(JSON.stringify({ plans: [] })), { code: "errorMissingPlansField" });
+});
+
+test("parseAllPlansImport applies the same per-plan fallbacks as parsePlanImport to each entry", () => {
+  const parsed = parseAllPlansImport(
+    JSON.stringify({ plans: [{ name: "Ok", days: ["A", "B"] }, "not-an-object", null] }),
+    "en"
+  );
+  assert.equal(parsed.length, 3);
+  assert.equal(parsed[0].name, "Ok");
+  assert.deepEqual(parsed[0].days, ["A", "B"]);
+  assert.equal(parsed[1].name, "Imported Schedule");
+  assert.deepEqual(parsed[1].days, DAYS_BY_LANGUAGE.en);
+  assert.equal(parsed[2].name, "Imported Schedule");
 });

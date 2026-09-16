@@ -167,21 +167,29 @@ Applying a preset/grid:
 
 ### 8. Export / Import
 
-- Export downloads the active plan as indented, human-readable/editable JSON, with a filename
-  derived from the (slugified) plan name.
-- JSON shape: `{ app: "vibe-stundenplan", version: 1, plan: { name, days, rowCount, times, entries } }`.
-  Full field-by-field specification including fallback rules and a JSON Schema draft: see
-  [EXPORT_FORMAT.md](EXPORT_FORMAT.md).
-- Import reads such a file and creates it as a **new** plan (never overwrites an existing
-  plan), then automatically switches to it.
+- "Export" downloads the active plan as indented, human-readable/editable JSON, with a
+  filename derived from the (slugified) plan name. "Export all" downloads every stored plan
+  (in store order) as one file instead.
+- JSON shapes: `{ app: "vibe-stundenplan", version: 1, plan: { name, days, rowCount, times, entries } }`
+  (single plan) or `{ app: "vibe-stundenplan", version: 1, plans: [ {...}, ... ] }` (all
+  plans). Full field-by-field specification including fallback rules and a JSON Schema draft:
+  see [EXPORT_FORMAT.md](EXPORT_FORMAT.md).
+- There is only **one** "Import" button/file picker for both shapes — it inspects the parsed
+  JSON itself (a top-level `plans` array vs. anything else) to decide whether to import one
+  plan or every plan in the file, rather than needing a separate "import all" control.
+  Whichever shape it reads, it only ever creates **new** plans (never overwrites an existing
+  one), switching afterwards to the single imported plan, or to the last of the imported ones
+  when importing a whole file.
 - Import is defensive: missing/broken fields fall back to sensible, language-dependent
   defaults (missing name → "Importierter Plan"/"Imported Schedule", invalid `rowCount` → 10,
   `times` not an array → `[]`, `entries` not an object → `{}`, `days` missing/empty/contains
-  blank strings → the current UI language's default weekdays) instead of crashing.
+  blank strings → the current UI language's default weekdays) instead of crashing — applied
+  independently per plan for an all-plans file, so one malformed entry in `plans` doesn't
+  block the rest.
 - `entries` are passed through raw (no field allowlist in `io.js`) — `span`, `startTime`,
   `endTime`, etc. are automatically exported/imported without `io.js` needing to know every
   entry field individually.
-- The exported plan carries the day names exactly as they were named at export time (whatever
+- The exported plan(s) carry the day names exactly as they were named at export time (whatever
   language/however renamed) — import takes them over unchanged.
 
 ### 9. Persistence & migration
@@ -300,6 +308,10 @@ Applying a preset/grid:
 - `@page { size: landscape }` as a hint to the browser — weekly tables are wider than they are
   tall, even though not every browser/OS picks that up automatically (in which case the user
   picks landscape manually in the print dialog).
+- The now-highlight (item 11 — current row, current day column, current cell) is also reset
+  to its unhighlighted look in print: it's live UI state tied to the exact moment of printing,
+  not part of the plan's actual content, so a printout shouldn't freeze in whatever minute it
+  happened to be made.
 - Deliberately **not** implemented: automatically hiding fully empty rows in print (to save
   paper) — the print view shows exactly what's visible on screen, minus controls, with no
   extra content filtering.

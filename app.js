@@ -23,7 +23,7 @@ import {
   removeDayWidth,
   translateDefaultDayNames,
 } from "./logic.js";
-import { serializePlan, parsePlanImport } from "./io.js";
+import { serializePlan, parsePlanImport, serializeAllPlans, parseAllPlansImport } from "./io.js";
 import {
   loadStore,
   saveStore,
@@ -73,6 +73,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   const printBtn = document.getElementById("printBtn");
   const editIconsToggle = document.getElementById("editIconsToggle");
   const exportBtn = document.getElementById("exportBtn");
+  const exportAllBtn = document.getElementById("exportAllBtn");
   const importBtn = document.getElementById("importBtn");
   const importFileInput = document.getElementById("importFileInput");
 
@@ -800,28 +801,56 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     return slug || "stundenplan";
   }
 
-  function exportPlan() {
-    const json = serializePlan(plan());
+  function downloadJson(json, filename) {
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${slugify(plan().name)}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   }
 
-  async function importPlanFromFile(file) {
-    const text = await file.text();
-    const imported = parsePlanImport(text, getLanguage(store));
+  function exportPlan() {
+    downloadJson(serializePlan(plan()), `${slugify(plan().name)}.json`);
+  }
+
+  function exportAllPlans() {
+    downloadJson(serializeAllPlans(store), "vibe-stundenplan-all.json");
+  }
+
+  function addImportedPlan(imported) {
     const newPlan = createEmptyPlan(imported.name, getLanguage(store));
     newPlan.rowCount = imported.rowCount;
     newPlan.times = imported.times;
     newPlan.entries = imported.entries;
     newPlan.days = imported.days;
     addPlan(store, newPlan);
+  }
+
+  // Auto-detects a single-plan (`{ plan: {...} }`) vs. an all-plans
+  // (`{ plans: [...] }`) export file from its own shape, rather than
+  // needing a separate "import all" button/file picker — whichever a
+  // parse attempt actually finds decides how many plans get imported.
+  // Both paths only ever add new plans, never overwrite existing ones.
+  async function importPlanFromFile(file) {
+    const text = await file.text();
+    let isAllPlansFile = false;
+    try {
+      const probe = JSON.parse(text);
+      isAllPlansFile = !!(probe && Array.isArray(probe.plans));
+    } catch {
+      // Not valid JSON at all — fall through so parsePlanImport below
+      // raises the same errorInvalidJson it always would.
+    }
+
+    const importedPlans = isAllPlansFile
+      ? parseAllPlansImport(text, getLanguage(store))
+      : [parsePlanImport(text, getLanguage(store))];
+
+    importedPlans.forEach(addImportedPlan);
     persist();
     renderAll();
   }
@@ -950,6 +979,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   });
 
   exportBtn.addEventListener("click", exportPlan);
+  exportAllBtn.addEventListener("click", exportAllPlans);
   importBtn.addEventListener("click", () => importFileInput.click());
   importFileInput.addEventListener("change", async () => {
     const file = importFileInput.files[0];
