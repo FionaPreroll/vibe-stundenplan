@@ -19,6 +19,8 @@ import {
   removeDayEntries,
   renameDayEntries,
   isDayNameTaken,
+  renameDayWidth,
+  removeDayWidth,
 } from "./logic.js";
 import { serializePlan, parsePlanImport } from "./io.js";
 import {
@@ -41,6 +43,7 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 (() => {
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
   const NOW_HIGHLIGHT_INTERVAL_MS = 30000;
+  const MIN_COL_WIDTH = 60;
 
   let store = loadStore(window.localStorage, detectDefaultLanguage(navigator.language));
 
@@ -55,6 +58,8 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
   const languageSwitcher = document.getElementById("languageSwitcher");
 
   const headerRow = document.getElementById("headerRow");
+  const timeColEl = document.querySelector(".time-col");
+  const timeColResizeHandle = document.getElementById("timeColResizeHandle");
   const planBody = document.getElementById("planBody");
   const addRowBtn = document.getElementById("addRowBtn");
   const resetBtn = document.getElementById("resetBtn");
@@ -138,10 +143,13 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
     const p = plan();
     headerRow.querySelectorAll("th.day-col, th.add-day-col").forEach((el) => el.remove());
 
+    timeColEl.style.width = p.timeColWidth ? `${p.timeColWidth}px` : "";
+
     p.days.forEach((day, index) => {
       const th = document.createElement("th");
       th.className = "day-col";
       th.style.background = RAINBOW[index % RAINBOW.length];
+      if (p.columnWidths[day]) th.style.width = `${p.columnWidths[day]}px`;
 
       const inner = document.createElement("div");
       inner.className = "day-col-inner";
@@ -166,6 +174,13 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
       inner.appendChild(removeBtn);
 
       th.appendChild(inner);
+
+      const resizeHandle = document.createElement("div");
+      resizeHandle.className = "col-resize-handle";
+      resizeHandle.setAttribute("aria-hidden", "true");
+      wireColumnResize(resizeHandle, { kind: "day", th, day });
+      th.appendChild(resizeHandle);
+
       headerRow.appendChild(th);
     });
 
@@ -214,16 +229,23 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
       const timeTd = document.createElement("td");
       timeTd.className = "time-cell";
 
-      const timeInput = document.createElement("input");
-      timeInput.type = "text";
-      timeInput.className = "time-input";
-      timeInput.placeholder = t("timeInputPlaceholder");
-      timeInput.value = p.times[row] || "";
-      timeInput.addEventListener("input", () => {
-        p.times[row] = timeInput.value;
+      const timeLabel = document.createElement("span");
+      timeLabel.className = "time-label";
+      timeLabel.contentEditable = "true";
+      timeLabel.spellcheck = false;
+      timeLabel.dataset.placeholder = t("timeInputPlaceholder");
+      timeLabel.textContent = p.times[row] || "";
+      timeLabel.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          timeLabel.blur();
+        }
+      });
+      timeLabel.addEventListener("input", () => {
+        p.times[row] = timeLabel.textContent;
         persist();
       });
-      timeTd.appendChild(timeInput);
+      timeTd.appendChild(timeLabel);
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
@@ -261,8 +283,9 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
   function renderCellContent(td, entry, rowLabels, span) {
     td.innerHTML = "";
-    td.style.paddingTop = "";
-    td.style.paddingBottom = "";
+    const entryBox = document.createElement("div");
+    entryBox.className = "entry-box";
+    td.appendChild(entryBox);
 
     if (entry && entry.title) {
       td.classList.add("filled");
@@ -271,26 +294,30 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
         const badge = document.createElement("p");
         badge.className = "entry-time-badge";
         badge.textContent = `${entry.startTime || "?"}–${entry.endTime || "?"}`;
-        td.appendChild(badge);
+        entryBox.appendChild(badge);
 
+        // Insets the box itself (not just its content) within the covered
+        // rows, so a partially-filled raster row visually starts/ends where
+        // the entry's real time does, instead of a full-height box with
+        // padding pushing the text down inside it.
         const inset = computeSubRangeInset(rowLabels, entry.startTime, entry.endTime);
         if (inset) {
           const totalHeight = ROW_HEIGHT_PX * span;
-          td.style.paddingTop = `${Math.round(totalHeight * inset.topFraction) + 8}px`;
-          td.style.paddingBottom = `${Math.round(totalHeight * inset.bottomFraction) + 8}px`;
+          entryBox.style.top = `${Math.round(totalHeight * inset.topFraction)}px`;
+          entryBox.style.bottom = `${Math.round(totalHeight * inset.bottomFraction)}px`;
         }
       }
 
       const title = document.createElement("p");
       title.className = "entry-title";
       title.textContent = entry.title;
-      td.appendChild(title);
+      entryBox.appendChild(title);
 
       if (entry.description) {
         const desc = document.createElement("p");
         desc.className = "entry-description";
         desc.textContent = entry.description;
-        td.appendChild(desc);
+        entryBox.appendChild(desc);
       }
 
       if (entry.link) {
@@ -302,14 +329,14 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
         link.textContent = t("linkText");
         link.addEventListener("mousedown", (e) => e.stopPropagation());
         link.addEventListener("click", (e) => e.stopPropagation());
-        td.appendChild(link);
+        entryBox.appendChild(link);
       }
     } else {
       td.classList.remove("filled");
       const placeholder = document.createElement("span");
       placeholder.className = "cell-placeholder";
       placeholder.textContent = "+";
-      td.appendChild(placeholder);
+      entryBox.appendChild(placeholder);
     }
   }
 
@@ -427,6 +454,52 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
     openEntryModal({ day, rowStart, rowEnd, isNewRange: true, entry: null });
   }
+
+  // --- Manual column resize ------------------------------------------------
+  // Lets the time column (and day columns) be widened past their default so
+  // raster labels like "16:40–18:10" aren't clipped; see the .time-label
+  // wrap-at-hyphen fallback in style.css for when resizing alone isn't done.
+
+  let colResizeState = null; // { target, th, startX, startWidth }
+
+  function wireColumnResize(handle, target) {
+    if (!handle) return;
+    handle.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      colResizeState = {
+        target,
+        th: target.th,
+        startX: e.clientX,
+        startWidth: target.th.getBoundingClientRect().width,
+      };
+      document.body.classList.add("no-select");
+    });
+  }
+
+  document.addEventListener("mousemove", (e) => {
+    if (!colResizeState) return;
+    const delta = e.clientX - colResizeState.startX;
+    const newWidth = Math.max(MIN_COL_WIDTH, Math.round(colResizeState.startWidth + delta));
+    colResizeState.th.style.width = `${newWidth}px`;
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!colResizeState) return;
+    const { target, th } = colResizeState;
+    const width = Math.max(MIN_COL_WIDTH, Math.round(th.getBoundingClientRect().width));
+    colResizeState = null;
+    document.body.classList.remove("no-select");
+
+    const p = plan();
+    if (target.kind === "time") {
+      p.timeColWidth = width;
+    } else {
+      p.columnWidths[target.day] = width;
+    }
+    persist();
+  });
 
   // --- Entry modal --------------------------------------------------------
 
@@ -609,6 +682,7 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
     p.days.splice(index, 1);
     p.entries = removeDayEntries(p.entries, day);
+    p.columnWidths = removeDayWidth(p.columnWidths, day);
     persist();
     renderHeader();
     renderBody();
@@ -639,7 +713,9 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
       p.days[index] = newName;
       p.entries = renameDayEntries(p.entries, oldName, newName);
+      p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
       persist();
+      renderHeader();
       renderBody();
     });
   }
@@ -708,6 +784,8 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
+  wireColumnResize(timeColResizeHandle, { kind: "time", th: timeColEl });
+
   printBtn.addEventListener("click", () => window.print());
   editIconsToggle.addEventListener("change", () => {
     setShowEditIcons(store, editIconsToggle.checked);

@@ -25,6 +25,8 @@ import {
   removeDayEntries,
   renameDayEntries,
   isDayNameTaken,
+  renameDayWidth,
+  removeDayWidth,
 } from "./logic.js";
 
 test("cellKey builds a stable row/day key", () => {
@@ -325,4 +327,22 @@ test("isDayNameTaken checks for a duplicate name among the other days", () => {
   assert.equal(isDayNameTaken(days, "Dienstag", 0), true);
   assert.equal(isDayNameTaken(days, "Dienstag", 1), false); // excludes itself
   assert.equal(isDayNameTaken(days, "Neu", 0), false);
+});
+
+test("renameDayWidth moves a stored width from the old to the new day name", () => {
+  const widths = { Montag: 140, Dienstag: 120 };
+  assert.deepEqual(renameDayWidth(widths, "Montag", "Mo"), { Dienstag: 120, Mo: 140 });
+});
+
+test("renameDayWidth is a no-op when the old day has no stored width", () => {
+  const widths = { Dienstag: 120 };
+  assert.deepEqual(renameDayWidth(widths, "Montag", "Mo"), widths);
+  assert.deepEqual(renameDayWidth(null, "Montag", "Mo"), {});
+});
+
+test("removeDayWidth drops the stored width for a removed day", () => {
+  const widths = { Montag: 140, Dienstag: 120 };
+  assert.deepEqual(removeDayWidth(widths, "Montag"), { Dienstag: 120 });
+  assert.deepEqual(removeDayWidth(widths, "Freitag"), widths); // no-op if absent
+  assert.deepEqual(removeDayWidth(null, "Montag"), {});
 });

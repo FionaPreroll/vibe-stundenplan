@@ -132,15 +132,17 @@ Anwenden eines Presets/Rasters:
 - **Zweck:** Ein Termin soll mitten in einer Zeile beginnen/enden können (z. B. ein
   15-minütiger Call um 08:10–08:25 innerhalb einer 08:00–09:00-Zeile), ohne dass das gesamte
   Raster so fein aufgelöst sein muss.
-- **Darstellung:** kleines Zeit-Badge über dem Titel; der Zelleninhalt wird zusätzlich
-  optisch innerhalb seiner Zelle verschoben (Pixel-basiertes Padding oben/unten,
-  proportional dazu, wo die Zeit innerhalb der Gesamtzeitspanne der belegten Zeile(n)
-  liegt — bewusst Pixel statt CSS-Prozent, da Prozent-Padding sich auf die *Breite* des
-  umgebenden Elements bezieht, nicht die Höhe, und bei unterschiedlich breiten Spalten
-  falsche Werte ergäbe). Das ist eine **Näherung fürs Auge**, kein pixelgenauer Kalender —
-  und fällt auf "keine Verschiebung" zurück, wenn die Zeilen-Zeitlabels nicht als
-  `HH:MM–HH:MM` parsebar sind (z. B. bei den standardmäßig leeren Zeilen eines frischen
-  Plans).
+- **Darstellung:** kleines Zeit-Badge über dem Titel; die sichtbare Box des Termins (ein
+  `.entry-box`-Div, absolut innerhalb der `<td>` positioniert, statt die `<td>` selbst zu
+  färben/umranden) wird zusätzlich innerhalb ihrer Zelle verschoben — pixelbasiert per
+  `top`/`bottom`, proportional dazu, wo die Zeit innerhalb der Gesamtzeitspanne der belegten
+  Zeile(n) liegt (bewusst Pixel statt CSS-Prozent, siehe oben). Wichtig: verschoben wird die
+  **Box selbst** (ihre Ober-/Unterkante), nicht nur ihr Inhalt per Padding — sonst wirkt es
+  so, als würde nur der Text nach unten rutschen, während die Zelle optisch schon vorher
+  beginnt, was bei einem mehrzeiligen Termin mit spätem Start seltsam aussieht. Das ist eine
+  **Näherung fürs Auge**, kein pixelgenauer Kalender — und fällt auf "keine Verschiebung"
+  zurück, wenn die Zeilen-Zeitlabels nicht als `HH:MM–HH:MM` parsebar sind (z. B. bei den
+  standardmäßig leeren Zeilen eines frischen Plans).
 - **UX-Absicherung:** Ist im Termin-Modal eine Start-/Endzeit gesetzt, aber die betroffene(n)
   Zeile(n) haben kein parsebares Zeitlabel, erscheint ein Hinweistext, der das erklärt —
   statt dass die Einrückung einfach stillschweigend ausbleibt und wie ein Bug wirkt.
@@ -344,6 +346,38 @@ Anwenden eines Presets/Rasters:
   der Pixel-Berechnung für Sub-Raster-Einrückung kollidieren, sofern `ROW_HEIGHT_PX` nicht
   ebenfalls dynamisch aus dem tatsächlich gerenderten Wert gelesen würde — als bewusst
   einfach gehaltene Abwägung vorerst nicht angegangen.
+
+### 18. Manuell verstellbare Spaltenbreiten
+
+- **Anlass:** `table-layout: fixed` (Punkt 17) sorgt zwar für ein Layout ohne Scrollen, aber
+  die feste ~92px-Zeitspalte reicht nicht für jedes Raster — lange Zeitlabels wie
+  "16:40–18:10" wurden im Zeit-`<input>` hart abgeschnitten (Inputs umbrechen ihren Text nie,
+  unabhängig von CSS).
+- **Lösung:** Jede Spalte (Zeit- und Tagesspalten) bekommt am rechten Rand ihres `<th>` einen
+  schmalen Ziehgriff (`.col-resize-handle`, `position: absolute` am Spaltenrand). Ziehen setzt
+  per Maus-Drag eine explizite `width` auf das `<th>` — unter `table-layout: fixed` bestimmt
+  das die Spaltenbreite der ganzen Spalte (Kopf- und Datenzellen). Eine Mindestbreite
+  (`MIN_COL_WIDTH = 60px` in `app.js`) verhindert, dass eine Spalte auf 0 kollabiert.
+  Nicht manuell verstellte Tagesspalten teilen sich weiterhin automatisch den verbleibenden
+  Platz gleichmäßig (unverändertes Verhalten aus Punkt 17).
+- **Persistenz:** Die Zeitspaltenbreite liegt als `plan.timeColWidth` (Zahl oder `null` für
+  Default), Tagesspaltenbreiten als `plan.columnWidths[dayName]` (Objekt, nur für explizit
+  verstellte Spalten). Beim Umbenennen einer Tagesspalte wird der Breiten-Eintrag mit
+  umgehängt (`renameDayWidth` in `logic.js`, analog zu `renameDayEntries`), beim Entfernen
+  gelöscht (`removeDayWidth`) — sonst würden verwaiste Einträge unter dem alten Namen
+  liegen bleiben.
+- **Sichtbarkeit:** Die Ziehgriffe sind Bearbeitungs-UI wie die Lösch-/Hinzufügen-Icons und
+  folgen deren Sichtbarkeits-Toggle (Punkt 16) sowie der Druckansicht (Punkt 15) — im Druck
+  wird die Zeitspalte ohnehin auf eine feste, garantiert ausreichende Breite gezwungen
+  (`!important`, überschreibt eine manuelle Bildschirm-Breite absichtlich).
+- **Fallback "zur Not umbrechen":** Das Zeitlabel selbst wurde von einem `<input type="text">`
+  auf ein `contenteditable`-Span umgestellt (wie die Tagesnamen, Punkt 1a) — Inputs können
+  grundsätzlich nicht umbrechen, ein `<span>` schon. Damit greift eine zweite Absicherung
+  unabhängig vom manuellen Resize: Ist eine Spalte trotzdem zu schmal, bricht das Label
+  normal um (bevorzugt am Halbgeviertstrich "–" zwischen den Uhrzeiten, da Unicode-
+  Zeilenumbruchregeln dort ohnehin eine Umbruchstelle vorsehen; `overflow-wrap: anywhere`
+  als zusätzliches Sicherheitsnetz für den Fall, dass selbst das nicht reicht) statt
+  abgeschnitten zu werden.
 
 ## Bewusste Nicht-Ziele (damit sie in einem Rewrite nicht versehentlich neu diskutiert werden)
 

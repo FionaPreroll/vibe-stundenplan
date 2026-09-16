@@ -37,6 +37,8 @@ test("createEmptyPlan produces unique ids and the default (German) shape", () =>
   assert.deepEqual(a.times, []);
   assert.deepEqual(a.entries, {});
   assert.deepEqual(a.days, DAYS_BY_LANGUAGE.de);
+  assert.deepEqual(a.columnWidths, {});
+  assert.equal(a.timeColWidth, null);
 });
 
 test("createEmptyPlan localizes the default name and days to the given language", () => {
@@ -102,6 +104,24 @@ test("loadStore backfills days on a plan stored before day columns were customiz
 
   const store = loadStore(storage);
   assert.deepEqual(getActivePlan(store).days, DAYS_BY_LANGUAGE.de);
+});
+
+test("loadStore backfills columnWidths/timeColWidth on a plan stored before columns were resizable", () => {
+  const oldPlan = createEmptyPlan("Alt");
+  delete oldPlan.columnWidths;
+  delete oldPlan.timeColWidth;
+  const storage = createMemoryStorage({
+    "stundenplan-store-v1": JSON.stringify({
+      activePlanId: oldPlan.id,
+      planOrder: [oldPlan.id],
+      plans: { [oldPlan.id]: oldPlan },
+    }),
+  });
+
+  const store = loadStore(storage);
+  const plan = getActivePlan(store);
+  assert.deepEqual(plan.columnWidths, {});
+  assert.equal(plan.timeColWidth, null);
 });
 
 test("loadStore ignores a corrupt legacy value and falls back to an empty plan", () => {

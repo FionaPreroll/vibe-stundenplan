@@ -20,6 +20,8 @@ export function createEmptyPlan(name, language = DEFAULT_LANGUAGE) {
     times: [],
     entries: {},
     days: [...(DAYS_BY_LANGUAGE[language] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE])],
+    columnWidths: {},
+    timeColWidth: null,
   };
 }
 
@@ -53,6 +55,12 @@ function migrateLegacyState(storage, language) {
 function normalizePlan(plan, language) {
   if (!Array.isArray(plan.days) || plan.days.length === 0) {
     plan.days = [...(DAYS_BY_LANGUAGE[language] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE])];
+  }
+  if (!plan.columnWidths || typeof plan.columnWidths !== "object") {
+    plan.columnWidths = {};
+  }
+  if (typeof plan.timeColWidth !== "number") {
+    plan.timeColWidth = null;
   }
   return plan;
 }

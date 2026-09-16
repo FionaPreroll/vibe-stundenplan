@@ -297,3 +297,20 @@ export function renameDayEntries(entries, oldDay, newDay) {
 export function isDayNameTaken(days, name, excludeIndex) {
   return days.some((d, i) => i !== excludeIndex && d === name);
 }
+
+// --- Manual column widths -------------------------------------------------
+// Day columns are resizable (see the col-resize-handle wiring in app.js);
+// widths are kept in a day-name-keyed map on the plan, so they need the same
+// rename/remove remapping as entries do.
+
+export function renameDayWidth(widths, oldDay, newDay) {
+  if (!widths || !(oldDay in widths)) return widths || {};
+  const { [oldDay]: value, ...rest } = widths;
+  return { ...rest, [newDay]: value };
+}
+
+export function removeDayWidth(widths, day) {
+  if (!widths || !(day in widths)) return widths || {};
+  const { [day]: _removed, ...rest } = widths;
+  return rest;
+}
