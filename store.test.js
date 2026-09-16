@@ -4,14 +4,16 @@ import {
   loadStore,
   saveStore,
   getActivePlan,
+  getLanguage,
+  setLanguage,
   addPlan,
   removePlan,
   renamePlan,
   switchPlan,
   createEmptyPlan,
-  DEFAULT_PLAN_NAME,
   INITIAL_ROW_COUNT,
 } from "./store.js";
+import { DAYS_BY_LANGUAGE } from "./i18n.js";
 
 function createMemoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -23,22 +25,36 @@ function createMemoryStorage(initial = {}) {
   };
 }
 
-test("createEmptyPlan produces unique ids and the default shape", () => {
+test("createEmptyPlan produces unique ids and the default (German) shape", () => {
   const a = createEmptyPlan();
   const b = createEmptyPlan("Custom");
   assert.notEqual(a.id, b.id);
-  assert.equal(a.name, DEFAULT_PLAN_NAME);
+  assert.equal(a.name, "Mein Stundenplan");
   assert.equal(b.name, "Custom");
   assert.equal(a.rowCount, INITIAL_ROW_COUNT);
   assert.deepEqual(a.times, []);
   assert.deepEqual(a.entries, {});
+  assert.deepEqual(a.days, DAYS_BY_LANGUAGE.de);
+});
+
+test("createEmptyPlan localizes the default name and days to the given language", () => {
+  const plan = createEmptyPlan(undefined, "en");
+  assert.equal(plan.name, "My Schedule");
+  assert.deepEqual(plan.days, DAYS_BY_LANGUAGE.en);
 });
 
 test("loadStore creates a fresh single-plan store when nothing is persisted", () => {
   const storage = createMemoryStorage();
   const store = loadStore(storage);
   assert.equal(store.planOrder.length, 1);
-  assert.equal(store.plans[store.activePlanId].name, DEFAULT_PLAN_NAME);
+  assert.equal(store.plans[store.activePlanId].name, "Mein Stundenplan");
+  assert.equal(getLanguage(store), "de");
+});
+
+test("loadStore uses the given default language for a fresh store", () => {
+  const store = loadStore(createMemoryStorage(), "en");
+  assert.equal(getLanguage(store), "en");
+  assert.equal(getActivePlan(store).name, "My Schedule");
 });
 
 test("loadStore returns a previously saved multi-plan store unchanged", () => {
@@ -64,10 +80,26 @@ test("loadStore migrates the legacy single-plan format into one plan", () => {
   const store = loadStore(storage);
   assert.equal(store.planOrder.length, 1);
   const plan = getActivePlan(store);
-  assert.equal(plan.name, DEFAULT_PLAN_NAME);
+  assert.equal(plan.name, "Mein Stundenplan");
   assert.equal(plan.rowCount, 12);
   assert.deepEqual(plan.times, ["08:00–08:45"]);
   assert.deepEqual(plan.entries, { "0_Montag": { title: "Alt", description: "", link: "" } });
+  assert.deepEqual(plan.days, DAYS_BY_LANGUAGE.de);
+});
+
+test("loadStore backfills days on a plan stored before day columns were customizable", () => {
+  const oldPlan = createEmptyPlan("Alt");
+  delete oldPlan.days;
+  const storage = createMemoryStorage({
+    "stundenplan-store-v1": JSON.stringify({
+      activePlanId: oldPlan.id,
+      planOrder: [oldPlan.id],
+      plans: { [oldPlan.id]: oldPlan },
+    }),
+  });
+
+  const store = loadStore(storage);
+  assert.deepEqual(getActivePlan(store).days, DAYS_BY_LANGUAGE.de);
 });
 
 test("loadStore ignores a corrupt legacy value and falls back to an empty plan", () => {
@@ -76,6 +108,15 @@ test("loadStore ignores a corrupt legacy value and falls back to an empty plan",
   const plan = getActivePlan(store);
   assert.equal(plan.rowCount, INITIAL_ROW_COUNT);
   assert.deepEqual(plan.entries, {});
+});
+
+test("getLanguage/setLanguage validate against the known language list", () => {
+  const store = loadStore(createMemoryStorage());
+  assert.equal(getLanguage(store), "de");
+  setLanguage(store, "en");
+  assert.equal(getLanguage(store), "en");
+  setLanguage(store, "fr"); // unknown language: ignored
+  assert.equal(getLanguage(store), "en");
 });
 
 test("addPlan appends and switches the active plan", () => {
@@ -88,9 +129,9 @@ test("addPlan appends and switches the active plan", () => {
   assert.equal(store.planOrder[0], firstId);
 });
 
-test("removePlan refuses to delete the last remaining plan", () => {
+test("removePlan refuses to delete the last remaining plan with a translatable error code", () => {
   const store = loadStore(createMemoryStorage());
-  assert.throws(() => removePlan(store, store.activePlanId), /letzte/);
+  assert.throws(() => removePlan(store, store.activePlanId), { code: "errorLastPlanCannotBeDeleted" });
 });
 
 test("removePlan drops the plan and reassigns active plan if needed", () => {

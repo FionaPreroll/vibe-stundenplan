@@ -1,3 +1,11 @@
+// Errors whose `message`/`code` is a translation key (see i18n.js), so
+// callers can show a localized message instead of a hardcoded string.
+export function codedError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
 export function cellKey(row, day) {
   return `${row}_${day}`;
 }
@@ -46,10 +54,10 @@ export function generateRasterTimes(intervalMinutes, startMinutes, endMinutes) {
   const end = Number(endMinutes);
 
   if (!Number.isFinite(interval) || interval <= 0) {
-    throw new Error("Das Intervall muss größer als 0 sein.");
+    throw codedError("errorIntervalPositive");
   }
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-    throw new Error("Das Ende muss nach dem Start liegen.");
+    throw codedError("errorEndAfterStart");
   }
 
   const stepMin = Math.round(interval);
@@ -64,9 +72,11 @@ export function generateRasterTimes(intervalMinutes, startMinutes, endMinutes) {
   return slots;
 }
 
+// Preset labels live in i18n.js (presetTuDresden/presetRwthAachen) since
+// they're user-facing text; these keys just identify which preset a button
+// applies.
 export const TIME_PRESETS = {
   "tu-dresden": {
-    label: "TU Dresden (Doppelstunden)",
     times: [
       "07:30–09:00",
       "09:20–10:50",
@@ -79,7 +89,6 @@ export const TIME_PRESETS = {
     ],
   },
   "rwth-aachen": {
-    label: "RWTH Aachen (Blockraster)",
     times: [
       "08:00–09:30",
       "09:45–11:15",
@@ -164,18 +173,28 @@ export function getEntrySpan(entry) {
   return entry && Number.isInteger(entry.span) && entry.span > 0 ? entry.span : 1;
 }
 
-// Whether (row, day) is covered by an earlier row's multi-row entry.
-// Entries never overlap (callers must clear overlaps before writing), so the
-// first entry found scanning backwards is decisive: either it reaches this
-// row or nothing earlier can.
-export function isCellCovered(row, day, entries) {
+// Returns the row index of the entry that actually occupies (row, day) —
+// `row` itself if it has its own entry there, an earlier row if a multi-row
+// entry's span reaches into it, or null if the cell is empty. Entries never
+// overlap (callers must clear overlaps before writing), so the first entry
+// found scanning backwards is decisive: either it reaches this row or
+// nothing earlier can.
+export function findAnchorRow(row, day, entries) {
+  if (entries[cellKey(row, day)]) return row;
   for (let r = row - 1; r >= 0; r--) {
     const entry = entries[cellKey(r, day)];
     if (entry) {
-      return r + getEntrySpan(entry) > row;
+      return r + getEntrySpan(entry) > row ? r : null;
     }
   }
-  return false;
+  return null;
+}
+
+// Whether (row, day) is covered by an earlier row's multi-row entry (as
+// opposed to being empty or having its own entry).
+export function isCellCovered(row, day, entries) {
+  const anchor = findAnchorRow(row, day, entries);
+  return anchor !== null && anchor !== row;
 }
 
 export function getCellRenderInfo(row, day, entries) {
@@ -245,4 +264,36 @@ export function removeRow(rowIndex, rowCount, times, entries) {
   }
 
   return { rowCount: newRowCount, times: newTimes, entries: newEntries };
+}
+
+// --- Day columns ---------------------------------------------------------
+// Default day names and weekday-name lookups live in i18n.js (they're
+// language-dependent); this section only holds language-agnostic column ops.
+
+export function dayHasEntries(day, entries) {
+  return Object.keys(entries).some((key) => parseCellKey(key).day === day);
+}
+
+export function removeDayEntries(entries, day) {
+  const result = {};
+  for (const key of Object.keys(entries)) {
+    if (parseCellKey(key).day === day) continue;
+    result[key] = entries[key];
+  }
+  return result;
+}
+
+// Entries are keyed by day name, so renaming a day column must remap them —
+// unlike row time labels, which are separate from the row index they sit at.
+export function renameDayEntries(entries, oldDay, newDay) {
+  const result = {};
+  for (const key of Object.keys(entries)) {
+    const { row, day } = parseCellKey(key);
+    result[day === oldDay ? cellKey(row, newDay) : key] = entries[key];
+  }
+  return result;
+}
+
+export function isDayNameTaken(days, name, excludeIndex) {
+  return days.some((d, i) => i !== excludeIndex && d === name);
 }

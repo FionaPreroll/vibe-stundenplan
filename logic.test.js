@@ -20,6 +20,11 @@ import {
   rowHasEntries,
   shiftEntryForRemoval,
   removeRow,
+  findAnchorRow,
+  dayHasEntries,
+  removeDayEntries,
+  renameDayEntries,
+  isDayNameTaken,
 } from "./logic.js";
 
 test("cellKey builds a stable row/day key", () => {
@@ -86,14 +91,14 @@ test("generateRasterTimes trims a trailing partial slot to the end time", () => 
   assert.deepEqual(times, ["08:00–10:30", "10:30–12:00"]);
 });
 
-test("generateRasterTimes rejects an interval <= 0", () => {
-  assert.throws(() => generateRasterTimes(0, 360, 1080));
-  assert.throws(() => generateRasterTimes(-1, 360, 1080));
+test("generateRasterTimes rejects an interval <= 0 with a translatable error code", () => {
+  assert.throws(() => generateRasterTimes(0, 360, 1080), { code: "errorIntervalPositive" });
+  assert.throws(() => generateRasterTimes(-1, 360, 1080), { code: "errorIntervalPositive" });
 });
 
-test("generateRasterTimes rejects an end time before or equal to start", () => {
-  assert.throws(() => generateRasterTimes(60, 600, 600));
-  assert.throws(() => generateRasterTimes(60, 720, 360));
+test("generateRasterTimes rejects an end time before or equal to start with a translatable error code", () => {
+  assert.throws(() => generateRasterTimes(60, 600, 600), { code: "errorEndAfterStart" });
+  assert.throws(() => generateRasterTimes(60, 720, 360), { code: "errorEndAfterStart" });
 });
 
 test("TIME_PRESETS ship 8 well-formed slots each for TU Dresden and RWTH Aachen", () => {
@@ -192,6 +197,15 @@ test("isCellCovered detects rows swallowed by an earlier multi-row entry", () =>
   assert.equal(isCellCovered(2, "Dienstag", entries), false);
 });
 
+test("findAnchorRow finds the entry actually occupying a cell, own or inherited", () => {
+  const entries = { "1_Montag": { title: "Meeting", span: 3 } };
+  assert.equal(findAnchorRow(1, "Montag", entries), 1);
+  assert.equal(findAnchorRow(2, "Montag", entries), 1);
+  assert.equal(findAnchorRow(3, "Montag", entries), 1);
+  assert.equal(findAnchorRow(4, "Montag", entries), null);
+  assert.equal(findAnchorRow(2, "Dienstag", entries), null);
+});
+
 test("getCellRenderInfo reports hidden covered cells and spans for anchors", () => {
   const entries = { "0_Montag": { title: "Block", span: 2 } };
   assert.deepEqual(getCellRenderInfo(0, "Montag", entries), {
@@ -281,4 +295,34 @@ test("removeRow shrinks a span crossing the removed row and reindexes trailing e
     "1_Montag": { title: "Block", span: 2 },
     "3_Dienstag": { title: "Later" },
   });
+});
+
+// --- Day columns ---------------------------------------------------------
+// Default day names live in i18n.js (language-dependent); see i18n.test.js.
+
+test("dayHasEntries checks only the given day, ignoring row/span", () => {
+  const entries = { "0_Montag": { title: "A" }, "2_Dienstag": { title: "B", span: 3 } };
+  assert.equal(dayHasEntries("Montag", entries), true);
+  assert.equal(dayHasEntries("Dienstag", entries), true);
+  assert.equal(dayHasEntries("Mittwoch", entries), false);
+});
+
+test("removeDayEntries drops only entries for the given day", () => {
+  const entries = { "0_Montag": { title: "A" }, "0_Dienstag": { title: "B" } };
+  assert.deepEqual(removeDayEntries(entries, "Montag"), { "0_Dienstag": { title: "B" } });
+});
+
+test("renameDayEntries remaps keys for the renamed day, leaves others untouched", () => {
+  const entries = { "0_Montag": { title: "A" }, "0_Dienstag": { title: "B" } };
+  assert.deepEqual(renameDayEntries(entries, "Montag", "Mo (Uni)"), {
+    "0_Mo (Uni)": { title: "A" },
+    "0_Dienstag": { title: "B" },
+  });
+});
+
+test("isDayNameTaken checks for a duplicate name among the other days", () => {
+  const days = ["Montag", "Dienstag", "Mittwoch"];
+  assert.equal(isDayNameTaken(days, "Dienstag", 0), true);
+  assert.equal(isDayNameTaken(days, "Dienstag", 1), false); // excludes itself
+  assert.equal(isDayNameTaken(days, "Neu", 0), false);
 });

@@ -10,29 +10,33 @@
   <header class="app-header">
     <div class="header-top">
       <div class="plan-controls">
-        <select id="planSwitcher" class="plan-switcher" aria-label="Stundenplan wählen"></select>
-        <button id="newPlanBtn" class="icon-btn" type="button" title="Neuen Stundenplan anlegen">+</button>
-        <button id="deletePlanBtn" class="icon-btn" type="button" title="Diesen Stundenplan löschen">🗑</button>
+        <select id="planSwitcher" class="plan-switcher" data-i18n-aria-label="planSwitcherLabel"></select>
+        <button id="newPlanBtn" class="icon-btn" type="button" data-i18n-title="newPlanTitle" data-i18n-aria-label="newPlanTitle">+</button>
+        <button id="deletePlanBtn" class="icon-btn" type="button" data-i18n-title="deletePlanTitle" data-i18n-aria-label="deletePlanTitle">🗑</button>
       </div>
-      <h1 id="planTitle" contenteditable="true" spellcheck="false" title="Klicken zum Umbenennen"></h1>
+      <h1 id="planTitle" contenteditable="true" spellcheck="false" data-i18n-title="renameHint"></h1>
+      <select id="languageSwitcher" class="language-switcher" aria-label="Language / Sprache">
+        <option value="de">Deutsch</option>
+        <option value="en">English</option>
+      </select>
     </div>
     <div class="app-actions">
-      <button id="exportBtn" class="btn btn-secondary">Exportieren</button>
-      <button id="importBtn" class="btn btn-secondary">Importieren</button>
+      <button id="exportBtn" class="btn btn-secondary" data-i18n="exportBtn"></button>
+      <button id="importBtn" class="btn btn-secondary" data-i18n="importBtn"></button>
       <input type="file" id="importFileInput" accept="application/json,.json" hidden />
-      <button id="timePresetBtn" class="btn btn-secondary">Zeiten festlegen</button>
-      <button id="addRowBtn" class="btn">+ Zeile hinzufügen</button>
-      <button id="resetBtn" class="btn btn-secondary">Zurücksetzen</button>
+      <button id="timePresetBtn" class="btn btn-secondary" data-i18n="timePresetBtn"></button>
+      <button id="addRowBtn" class="btn" data-i18n="addRowBtn"></button>
+      <button id="resetBtn" class="btn btn-secondary" data-i18n="resetBtn"></button>
     </div>
   </header>
 
   <main>
-    <p class="hint-text">Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin.</p>
+    <p class="hint-text" data-i18n="hintText"></p>
     <div class="table-wrap">
       <table id="planTable">
         <thead>
           <tr id="headerRow">
-            <th class="time-col">Zeit</th>
+            <th class="time-col" data-i18n="timeColHeader"></th>
             <!-- day headers injected by JS -->
           </tr>
         </thead>
@@ -47,35 +51,36 @@
   <div id="modalOverlay" class="modal-overlay hidden">
     <div class="modal">
       <form id="entryForm">
-        <h2 id="modalTitleHeading">Termin bearbeiten</h2>
+        <h2 id="modalTitleHeading"></h2>
         <p id="modalRangeInfo" class="modal-hint"></p>
         <label class="field">
-          <span>Titel</span>
-          <input type="text" id="fieldTitle" placeholder="z. B. Mathe lernen" maxlength="80" autofocus />
+          <span data-i18n="fieldTitleLabel"></span>
+          <input type="text" id="fieldTitle" maxlength="80" autofocus data-i18n-placeholder="fieldTitlePlaceholder" />
         </label>
         <div class="raster-inputs">
           <label class="field field-inline">
-            <span>Start (optional)</span>
+            <span data-i18n="fieldStartLabel"></span>
             <input type="time" id="fieldStartTime" />
           </label>
           <label class="field field-inline">
-            <span>Ende (optional)</span>
+            <span data-i18n="fieldEndLabel"></span>
             <input type="time" id="fieldEndTime" />
           </label>
         </div>
+        <p id="timeHint" class="modal-hint time-hint"></p>
         <label class="field">
-          <span>Beschreibung</span>
-          <textarea id="fieldDescription" placeholder="Details zur Aufgabe..." rows="4" maxlength="500"></textarea>
+          <span data-i18n="fieldDescriptionLabel"></span>
+          <textarea id="fieldDescription" rows="4" maxlength="500" data-i18n-placeholder="fieldDescriptionPlaceholder"></textarea>
         </label>
         <label class="field">
-          <span>Link</span>
+          <span data-i18n="fieldLinkLabel"></span>
           <input type="url" id="fieldLink" placeholder="https://..." />
         </label>
         <div class="modal-actions">
-          <button id="deleteEntryBtn" type="button" class="btn btn-danger">Löschen</button>
+          <button id="deleteEntryBtn" type="button" class="btn btn-danger" data-i18n="deleteEntryBtn"></button>
           <div class="modal-actions-right">
-            <button id="cancelModalBtn" type="button" class="btn btn-secondary">Abbrechen</button>
-            <button id="saveEntryBtn" type="submit" class="btn">Speichern</button>
+            <button id="cancelModalBtn" type="button" class="btn btn-secondary" data-i18n="cancelBtn"></button>
+            <button id="saveEntryBtn" type="submit" class="btn" data-i18n="saveBtn"></button>
           </div>
         </div>
       </form>
@@ -86,22 +91,20 @@
   <div id="timeModalOverlay" class="modal-overlay hidden">
     <div class="modal">
       <form id="timeForm">
-        <h2>Zeitraster festlegen</h2>
-        <p class="modal-hint">
-          Vorlage wählen oder eigenes Raster erstellen. Einträge bleiben erhalten, es werden nur die Zeit-Labels gesetzt.
-        </p>
+        <h2 data-i18n="timeModalTitle"></h2>
+        <p class="modal-hint" data-i18n="timeModalHint"></p>
 
         <div class="preset-list">
-          <button type="button" class="btn btn-secondary preset-btn" data-preset="tu-dresden">TU Dresden (Doppelstunden)</button>
-          <button type="button" class="btn btn-secondary preset-btn" data-preset="rwth-aachen">RWTH Aachen (Blockraster)</button>
+          <button type="button" class="btn btn-secondary preset-btn" data-preset="tu-dresden" data-i18n="presetTuDresden"></button>
+          <button type="button" class="btn btn-secondary preset-btn" data-preset="rwth-aachen" data-i18n="presetRwthAachen"></button>
         </div>
 
         <hr class="modal-divider" />
 
-        <span class="field-group-label">Eigenes Raster</span>
+        <span class="field-group-label" data-i18n="customRasterLabel"></span>
         <div class="raster-inputs">
           <label class="field field-inline">
-            <span>Intervall (Min.)</span>
+            <span data-i18n="rasterIntervalLabel"></span>
             <input type="number" id="rasterInterval" min="5" step="5" value="120" list="rasterIntervalPresets" />
             <datalist id="rasterIntervalPresets">
               <option value="10"></option>
@@ -115,20 +118,20 @@
             </datalist>
           </label>
           <label class="field field-inline">
-            <span>Von</span>
+            <span data-i18n="rasterFromLabel"></span>
             <input type="time" id="rasterStart" value="06:00" />
           </label>
           <label class="field field-inline">
-            <span>Bis</span>
+            <span data-i18n="rasterToLabel"></span>
             <input type="time" id="rasterEnd" value="18:00" />
           </label>
         </div>
-        <button type="submit" id="applyRasterBtn" class="btn">Raster anwenden</button>
+        <button type="submit" id="applyRasterBtn" class="btn" data-i18n="applyRasterBtn"></button>
 
         <div class="modal-actions">
           <div></div>
           <div class="modal-actions-right">
-            <button id="cancelTimeModalBtn" type="button" class="btn btn-secondary">Schließen</button>
+            <button id="cancelTimeModalBtn" type="button" class="btn btn-secondary" data-i18n="closeBtn"></button>
           </div>
         </div>
       </form>

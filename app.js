@@ -2,6 +2,7 @@ import {
   cellKey,
   generateRasterTimes,
   parseTimeToMinutes,
+  parseTimeRangeToMinutes,
   TIME_PRESETS,
   computeEntryUpdate,
   computeSubRangeInset,
@@ -13,31 +14,43 @@ import {
   findOverlappingKeys,
   rowHasEntries,
   removeRow,
+  findAnchorRow,
+  dayHasEntries,
+  removeDayEntries,
+  renameDayEntries,
+  isDayNameTaken,
 } from "./logic.js";
 import { serializePlan, parsePlanImport } from "./io.js";
 import {
   loadStore,
   saveStore,
   getActivePlan,
+  getLanguage,
+  setLanguage,
   addPlan,
   removePlan,
   renamePlan,
   switchPlan,
   createEmptyPlan,
-  DEFAULT_PLAN_NAME,
   INITIAL_ROW_COUNT,
 } from "./store.js";
+import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.js";
 
 (() => {
-  const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
+  const NOW_HIGHLIGHT_INTERVAL_MS = 30000;
 
-  let store = loadStore(window.localStorage);
+  let store = loadStore(window.localStorage, detectDefaultLanguage(navigator.language));
+
+  function t(key, params) {
+    return translate(getLanguage(store), key, params);
+  }
 
   const planTitleEl = document.getElementById("planTitle");
   const planSwitcher = document.getElementById("planSwitcher");
   const newPlanBtn = document.getElementById("newPlanBtn");
   const deletePlanBtn = document.getElementById("deletePlanBtn");
+  const languageSwitcher = document.getElementById("languageSwitcher");
 
   const headerRow = document.getElementById("headerRow");
   const planBody = document.getElementById("planBody");
@@ -54,6 +67,7 @@ import {
   const fieldTitle = document.getElementById("fieldTitle");
   const fieldStartTime = document.getElementById("fieldStartTime");
   const fieldEndTime = document.getElementById("fieldEndTime");
+  const timeHint = document.getElementById("timeHint");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
@@ -78,16 +92,84 @@ import {
     saveStore(store, window.localStorage);
   }
 
+  function rainbowPalette() {
+    const styles = getComputedStyle(document.documentElement);
+    const colors = [];
+    for (let i = 1; i <= 7; i++) {
+      const v = styles.getPropertyValue(`--day-${i}`).trim();
+      if (v) colors.push(v);
+    }
+    return colors.length ? colors : ["#8fb8ff"];
+  }
+  const RAINBOW = rainbowPalette();
+
+  // --- i18n ---------------------------------------------------------------
+
+  function applyStaticTranslations() {
+    document.documentElement.lang = getLanguage(store);
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+      el.title = t(el.dataset.i18nTitle);
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+      el.setAttribute("aria-label", t(el.dataset.i18nAriaLabel));
+    });
+    languageSwitcher.value = getLanguage(store);
+  }
+
   // --- Rendering --------------------------------------------------------
 
   function renderHeader() {
-    headerRow.querySelectorAll("th.day-col").forEach((el) => el.remove());
-    DAYS.forEach((day) => {
+    const p = plan();
+    headerRow.querySelectorAll("th.day-col, th.add-day-col").forEach((el) => el.remove());
+
+    p.days.forEach((day, index) => {
       const th = document.createElement("th");
       th.className = "day-col";
-      th.textContent = day;
+      th.style.background = RAINBOW[index % RAINBOW.length];
+
+      const inner = document.createElement("div");
+      inner.className = "day-col-inner";
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "day-name";
+      nameEl.contentEditable = "true";
+      nameEl.spellcheck = false;
+      nameEl.textContent = day;
+      nameEl.title = t("renameHint");
+      wireDayRename(nameEl, index);
+      inner.appendChild(nameEl);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "col-remove-btn";
+      removeBtn.title = t("removeDayColTitle");
+      removeBtn.setAttribute("aria-label", t("removeDayColTitle"));
+      removeBtn.textContent = "×";
+      removeBtn.disabled = p.days.length <= 1;
+      removeBtn.addEventListener("click", () => removeDayColumn(index));
+      inner.appendChild(removeBtn);
+
+      th.appendChild(inner);
       headerRow.appendChild(th);
     });
+
+    const addTh = document.createElement("th");
+    addTh.className = "add-day-col";
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "icon-btn";
+    addBtn.title = t("addDayColTitle");
+    addBtn.setAttribute("aria-label", t("addDayColTitle"));
+    addBtn.textContent = "+";
+    addBtn.addEventListener("click", addDayColumn);
+    addTh.appendChild(addBtn);
+    headerRow.appendChild(addTh);
   }
 
   function renderPlanSwitcher() {
@@ -109,7 +191,7 @@ import {
     if (planTitleEl.textContent !== p.name) {
       planTitleEl.textContent = p.name;
     }
-    document.title = `${p.name} · Stundenplan`;
+    document.title = `${p.name} · ${t("appTitleSuffix")}`;
   }
 
   function renderBody() {
@@ -125,7 +207,7 @@ import {
       const timeInput = document.createElement("input");
       timeInput.type = "text";
       timeInput.className = "time-input";
-      timeInput.placeholder = "z. B. 08:00–08:45";
+      timeInput.placeholder = t("timeInputPlaceholder");
       timeInput.value = p.times[row] || "";
       timeInput.addEventListener("input", () => {
         p.times[row] = timeInput.value;
@@ -136,15 +218,15 @@ import {
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "row-remove-btn";
-      removeBtn.title = "Zeile entfernen";
-      removeBtn.setAttribute("aria-label", "Zeile entfernen");
+      removeBtn.title = t("removeRowTitle");
+      removeBtn.setAttribute("aria-label", t("removeRowTitle"));
       removeBtn.textContent = "×";
       removeBtn.addEventListener("click", () => removeRowAt(row));
       timeTd.appendChild(removeBtn);
 
       tr.appendChild(timeTd);
 
-      DAYS.forEach((day) => {
+      p.days.forEach((day) => {
         const info = getCellRenderInfo(row, day, p.entries);
         if (info.hidden) return;
 
@@ -163,6 +245,8 @@ import {
 
       planBody.appendChild(tr);
     }
+
+    applyNowHighlight();
   }
 
   function renderCellContent(td, entry, rowLabels, span) {
@@ -205,7 +289,7 @@ import {
         link.href = entry.link;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.textContent = "🔗 Link";
+        link.textContent = t("linkText");
         link.addEventListener("mousedown", (e) => e.stopPropagation());
         link.addEventListener("click", (e) => e.stopPropagation());
         td.appendChild(link);
@@ -220,10 +304,54 @@ import {
   }
 
   function renderAll() {
+    applyStaticTranslations();
+    renderHeader();
     renderPlanSwitcher();
     renderPlanTitle();
     renderBody();
   }
+
+  // --- "Now" highlight ---------------------------------------------------
+
+  function applyNowHighlight() {
+    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
+    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
+    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
+
+    const p = plan();
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const weekdayNames = WEEKDAYS_BY_LANGUAGE[getLanguage(store)];
+    const todayName = weekdayNames[now.getDay()];
+
+    let currentRow = -1;
+    for (let row = 0; row < p.rowCount; row++) {
+      const range = parseTimeRangeToMinutes(p.times[row]);
+      if (range && nowMinutes >= range.start && nowMinutes < range.end) {
+        currentRow = row;
+        break;
+      }
+    }
+    if (currentRow === -1) return;
+
+    const timeRow = planBody.children[currentRow];
+    timeRow?.querySelector(".time-cell")?.classList.add("current-row");
+
+    const dayIndex = p.days.indexOf(todayName);
+    if (dayIndex === -1) return;
+
+    const headerCells = headerRow.querySelectorAll("th.day-col");
+    headerCells[dayIndex]?.classList.add("current-day-col");
+
+    const anchorRow = findAnchorRow(currentRow, todayName, p.entries);
+    if (anchorRow === null) return;
+    const anchorKey = cellKey(anchorRow, todayName);
+    planBody.querySelectorAll(".data-cell").forEach((td) => {
+      if (td.dataset.key === anchorKey) td.classList.add("current-cell");
+    });
+  }
+
+  setInterval(applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
 
   // --- Drag-to-select ranges ---------------------------------------------
 
@@ -295,16 +423,29 @@ import {
     const p = plan();
     if (rowStart === rowEnd) {
       const label = p.times[rowStart];
-      return label ? `${day} · ${label}` : `${day} · Zeile ${rowStart + 1}`;
+      return label ? `${day} · ${label}` : `${day} · ${t("rowLabelFallback", { n: rowStart + 1 })}`;
     }
     const startLabel = p.times[rowStart];
     const endLabel = p.times[rowEnd];
     if (!startLabel && !endLabel) {
-      return `${day} · Zeile ${rowStart + 1}–${rowEnd + 1}`;
+      return `${day} · ${t("rowRangeLabelFallback", { a: rowStart + 1, b: rowEnd + 1 })}`;
     }
-    const startText = startLabel ? startLabel.split("–")[0] : `Zeile ${rowStart + 1}`;
-    const endText = endLabel ? endLabel.split("–").pop() : `Zeile ${rowEnd + 1}`;
+    const startText = startLabel ? startLabel.split("–")[0] : t("rowLabelFallback", { n: rowStart + 1 });
+    const endText = endLabel ? endLabel.split("–").pop() : t("rowLabelFallback", { n: rowEnd + 1 });
     return `${day} · ${startText}–${endText}`;
+  }
+
+  function updateTimeHint() {
+    if (!activeSelection) {
+      timeHint.textContent = "";
+      return;
+    }
+    const { rowStart, rowEnd } = activeSelection;
+    const p = plan();
+    const rowLabels = p.times.slice(rowStart, rowEnd + 1);
+    const hasCustomTime = fieldStartTime.value || fieldEndTime.value;
+    const inset = hasCustomTime ? computeSubRangeInset(rowLabels, fieldStartTime.value, fieldEndTime.value) : null;
+    timeHint.textContent = hasCustomTime && !inset ? t("timeHintUnparseable") : "";
   }
 
   function openEntryModal({ day, rowStart, rowEnd, isNewRange, entry }) {
@@ -315,8 +456,9 @@ import {
     fieldDescription.value = entry?.description || "";
     fieldLink.value = entry?.link || "";
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
-    modalTitleHeading.textContent = entry ? "Termin bearbeiten" : "Termin hinzufügen";
+    modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
     modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
+    updateTimeHint();
     modalOverlay.classList.remove("hidden");
     setTimeout(() => fieldTitle.focus(), 0);
   }
@@ -379,8 +521,8 @@ import {
     if (newTimes.length === 0) return;
     const p = plan();
 
-    const hasConflict = newTimes.some((t, i) => p.times[i] && p.times[i] !== t);
-    if (hasConflict && !confirm("Bestehende Zeit-Labels werden überschrieben. Fortfahren?")) {
+    const hasConflict = newTimes.some((t2, i) => p.times[i] && p.times[i] !== t2);
+    if (hasConflict && !confirm(t("confirmOverwriteTimes"))) {
       return;
     }
 
@@ -403,9 +545,8 @@ import {
     const p = plan();
     if (p.rowCount <= 0) return;
 
-    if (rowHasEntries(rowIndex, DAYS, p.entries)) {
-      const ok = confirm("Diese Zeile enthält Termine. Beim Entfernen gehen sie verloren. Fortfahren?");
-      if (!ok) return;
+    if (rowHasEntries(rowIndex, p.days, p.entries)) {
+      if (!confirm(t("confirmRemoveRowWithEntries"))) return;
     }
 
     const result = removeRow(rowIndex, p.rowCount, p.times, p.entries);
@@ -417,9 +558,7 @@ import {
   }
 
   function resetAll() {
-    if (!confirm("Wirklich diesen Stundenplan zurücksetzen? Das kann nicht rückgängig gemacht werden.")) {
-      return;
-    }
+    if (!confirm(t("confirmResetPlan"))) return;
     const p = plan();
     p.rowCount = INITIAL_ROW_COUNT;
     p.times = [];
@@ -428,10 +567,85 @@ import {
     renderBody();
   }
 
+  // --- Day column management ---------------------------------------------
+
+  function nextDefaultDayName(days) {
+    const base = t("newDayName");
+    let i = days.length + 1;
+    while (days.includes(`${base} ${i}`)) i += 1;
+    return `${base} ${i}`;
+  }
+
+  function addDayColumn() {
+    const p = plan();
+    p.days.push(nextDefaultDayName(p.days));
+    persist();
+    renderHeader();
+    renderBody();
+    const nameEls = headerRow.querySelectorAll(".day-name");
+    const newNameEl = nameEls[nameEls.length - 1];
+    focusAndSelect(newNameEl);
+  }
+
+  function removeDayColumn(index) {
+    const p = plan();
+    if (p.days.length <= 1) return;
+    const day = p.days[index];
+
+    if (dayHasEntries(day, p.entries)) {
+      if (!confirm(t("confirmRemoveDayWithEntries", { day }))) return;
+    }
+
+    p.days.splice(index, 1);
+    p.entries = removeDayEntries(p.entries, day);
+    persist();
+    renderHeader();
+    renderBody();
+  }
+
+  function wireDayRename(nameEl, index) {
+    nameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        nameEl.blur();
+      }
+    });
+
+    nameEl.addEventListener("blur", () => {
+      const p = plan();
+      const oldName = p.days[index];
+      const newName = nameEl.textContent.trim();
+
+      if (!newName || newName === oldName) {
+        nameEl.textContent = oldName;
+        return;
+      }
+      if (isDayNameTaken(p.days, newName, index)) {
+        alert(t("alertDayNameTaken", { name: newName }));
+        nameEl.textContent = oldName;
+        return;
+      }
+
+      p.days[index] = newName;
+      p.entries = renameDayEntries(p.entries, oldName, newName);
+      persist();
+      renderBody();
+    });
+  }
+
+  function focusAndSelect(el) {
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   // --- Plan management -------------------------------------------------
 
   function nextDefaultPlanName() {
-    const base = "Neuer Plan";
+    const base = t("newPlanName");
     const existingNames = new Set(Object.values(store.plans).map((p) => p.name));
     if (!existingNames.has(base)) return base;
     let i = 2;
@@ -440,12 +654,7 @@ import {
   }
 
   function focusPlanTitleForRename() {
-    planTitleEl.focus();
-    const range = document.createRange();
-    range.selectNodeContents(planTitleEl);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+    focusAndSelect(planTitleEl);
   }
 
   // --- Export / Import -------------------------------------------------
@@ -473,11 +682,12 @@ import {
 
   async function importPlanFromFile(file) {
     const text = await file.text();
-    const imported = parsePlanImport(text);
-    const newPlan = createEmptyPlan(imported.name);
+    const imported = parsePlanImport(text, getLanguage(store));
+    const newPlan = createEmptyPlan(imported.name, getLanguage(store));
     newPlan.rowCount = imported.rowCount;
     newPlan.times = imported.times;
     newPlan.entries = imported.entries;
+    newPlan.days = imported.days;
     addPlan(store, newPlan);
     persist();
     renderAll();
@@ -496,6 +706,8 @@ import {
     e.preventDefault();
     saveEntry();
   });
+  fieldStartTime.addEventListener("input", updateTimeHint);
+  fieldEndTime.addEventListener("input", updateTimeHint);
 
   timePresetBtn.addEventListener("click", openTimeModal);
   cancelTimeModalBtn.addEventListener("click", closeTimeModal);
@@ -514,12 +726,12 @@ import {
       const startMin = parseTimeToMinutes(rasterStart.value);
       const endMin = parseTimeToMinutes(rasterEnd.value);
       if (startMin === null || endMin === null) {
-        throw new Error("Bitte Start- und Endzeit angeben.");
+        throw new Error(t("alertRasterNeedsTimes"));
       }
       const times = generateRasterTimes(rasterInterval.value, startMin, endMin);
       applyTimes(times);
     } catch (err) {
-      alert(err.message);
+      alert(err.code ? t(err.code) : err.message);
     }
   });
 
@@ -536,7 +748,7 @@ import {
   });
 
   newPlanBtn.addEventListener("click", () => {
-    const newPlan = createEmptyPlan(nextDefaultPlanName());
+    const newPlan = createEmptyPlan(nextDefaultPlanName(), getLanguage(store));
     addPlan(store, newPlan);
     persist();
     renderAll();
@@ -546,10 +758,14 @@ import {
   deletePlanBtn.addEventListener("click", () => {
     if (store.planOrder.length <= 1) return;
     const p = plan();
-    if (!confirm(`Stundenplan "${p.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) {
-      return;
-    }
+    if (!confirm(t("confirmDeletePlan", { name: p.name }))) return;
     removePlan(store, p.id);
+    persist();
+    renderAll();
+  });
+
+  languageSwitcher.addEventListener("change", () => {
+    setLanguage(store, languageSwitcher.value);
     persist();
     renderAll();
   });
@@ -562,12 +778,12 @@ import {
   });
 
   planTitleEl.addEventListener("blur", () => {
-    const name = planTitleEl.textContent.trim() || DEFAULT_PLAN_NAME;
+    const name = planTitleEl.textContent.trim() || t("defaultPlanName");
     planTitleEl.textContent = name;
     renamePlan(store, store.activePlanId, name);
     persist();
     renderPlanSwitcher();
-    document.title = `${name} · Stundenplan`;
+    document.title = `${name} · ${t("appTitleSuffix")}`;
   });
 
   exportBtn.addEventListener("click", exportPlan);
@@ -579,10 +795,9 @@ import {
     try {
       await importPlanFromFile(file);
     } catch (err) {
-      alert(err.message || "Import fehlgeschlagen.");
+      alert(err.code ? t(err.code) : err.message || t("alertImportFailed"));
     }
   });
 
-  renderHeader();
   renderAll();
 })();
