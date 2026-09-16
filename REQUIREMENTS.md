@@ -1,505 +1,481 @@
-# Anforderungen: Vibe-Stundenplan
+# Requirements: Vibe-Stundenplan
 
-Dieses Dokument fasst zusammen, was die App aktuell leisten soll — als Referenz für ein
-späteres Rewrite, unabhängig von der konkreten Implementierung. Es beschreibt den Stand nach
-dem Feature-Batch "Tagesspalten entfernbar/hinzufügbar, Jetzt-Hervorhebung, echte
-Mehrsprachigkeit (DE/EN), README mit automatisierten Screenshots".
+This document summarizes what the app is currently meant to do — as a reference for a future
+rewrite, independent of the concrete implementation. It describes the state after the feature
+batch "removable/addable day columns, now-highlight, real internationalization (DE/EN), README
+with automated screenshots".
 
-Für Modul-Verantwortlichkeiten, Test-Philosophie und Konventionen (i18n, wann sich ein
-Framework lohnen würde etc.) siehe [CONTRIBUTING.md](CONTRIBUTING.md) — dieses Dokument hier
-beschreibt das *was*, CONTRIBUTING.md das *wie*.
+For module responsibilities, test philosophy, and conventions (i18n, when a framework would be
+worth it, etc.) see [CONTRIBUTING.md](CONTRIBUTING.md) — this document describes the *what*,
+CONTRIBUTING.md the *how*.
 
-## Zweck
+## Purpose
 
-Single-Page-App für die persönliche Alltagsplanung: ein Stundenplan-artiges Wochenraster, in
-das man Termine/Aufgaben einträgt. Kein Kalender-Ersatz, kein Team-Tool — ein
-Einzelnutzer-Werkzeug, das lokal im Browser läuft, für deutsch- und englischsprachige Nutzer.
+A single-page app for everyday personal planning: a schedule-like weekly grid you fill in with
+entries/tasks. Not a calendar replacement, not a team tool — a single-user tool that runs
+locally in the browser, for German- and English-speaking users.
 
-## Technische Rahmenbedingungen (bewusste Entscheidungen)
+## Technical constraints (deliberate decisions)
 
-- **Kein Build-Schritt für die App.** Reines HTML/CSS/JS (ES-Module), direkt als statische
-  Dateien servierbar (lokal per `python3 -m http.server` o. ä., oder GitHub Pages). Kein
-  Bundler, kein Framework, kein CSS-Framework.
-- **Keine Laufzeit-Abhängigkeiten für die App.** Die ausgelieferte App braucht keine
-  npm-Pakete. Die einzige Ausnahme im ganzen Repo ist Playwright als reine devDependency für
-  das Screenshot-Tooling (siehe Punkt 13) — nie im App-Code, nie für `npm test` nötig.
-- **Kein Backend, keine Accounts.** Alle Daten liegen ausschließlich im `localStorage` des
-  Browsers. Keine Synchronisation zwischen Geräten/Browsern außer über manuellen
-  Export/Import (siehe Punkt 8).
-- **Tests ohne Test-Framework.** Node's eingebauter Test-Runner (`node --test` / `npm test`).
-- **Deployment:** GitHub Actions → GitHub Pages, automatisch bei jedem Push auf `main`.
-  Erfordert ein öffentliches Repo (Pages auf privaten Repos braucht einen bezahlten
-  GitHub-Plan) und einmalig manuell gesetzten Pages-Source ("GitHub Actions") in den
-  Repo-Einstellungen — das kann der Workflow-Token nicht selbst freischalten.
+- **No build step for the app.** Plain HTML/CSS/JS (ES modules), directly servable as static
+  files (locally via `python3 -m http.server` or similar, or GitHub Pages). No bundler, no
+  framework, no CSS framework.
+- **No runtime dependencies for the app.** The shipped app needs no npm packages. The only
+  exception in the whole repo is Playwright as a pure devDependency for the screenshot tooling
+  (see item 13) — never in app code, never needed for `npm test`.
+- **No backend, no accounts.** All data lives exclusively in the browser's `localStorage`. No
+  sync between devices/browsers except manual export/import (see item 8).
+- **Tests without a test framework.** Node's built-in test runner (`node --test` / `npm test`).
+- **Deployment:** GitHub Actions → GitHub Pages, automatically on every push to `main`.
+  Requires a public repo (Pages on private repos needs a paid GitHub plan) and a one-time
+  manually set Pages source ("GitHub Actions") in the repo settings — the workflow token can't
+  enable that itself.
 
-## Architektur / Module
+## Architecture / modules
 
-| Datei | Verantwortung |
+| File | Responsibility |
 |---|---|
-| `index.html` | Markup, zwei Modal-`<form>`s (Termin-Modal, Zeitraster-Modal), `data-i18n*`-Attribute für statischen Text |
-| `style.css` | Styling, Regenbogenfarben (positionsbasiert, nicht an feste Wochentage gebunden), responsives Layout |
-| `logic.js` | **Reine** Stundenplan-Logik — kein DOM, kein I/O, keine Sprache, vollständig unit-testbar |
-| `io.js` | Export/Import-Serialisierung eines Plans (JSON), nimmt Sprache als Parameter |
-| `store.js` | Persistenz mehrerer Pläne + Sprachwahl; kapselt `localStorage`, Storage ist injizierbar (Testbarkeit) |
-| `i18n.js` | String-Wörterbuch (DE/EN) + reine Helper (`translate`, `detectDefaultLanguage`) |
-| `app.js` | DOM-Controller; einziges Modul, das `document`/`window`/`alert`/`confirm` anfasst |
+| `index.html` | Markup, two modal `<form>`s (entry modal, time-grid modal), `data-i18n*` attributes for static text |
+| `style.css` | Styling, rainbow colors (position-based, not tied to fixed weekdays), responsive layout |
+| `logic.js` | **Pure** schedule logic — no DOM, no I/O, no language, fully unit-testable |
+| `io.js` | Export/import serialization of a plan (JSON), takes language as a parameter |
+| `store.js` | Persistence of multiple plans + language choice; wraps `localStorage`, storage is injectable (testability) |
+| `i18n.js` | String dictionary (DE/EN) + pure helpers (`translate`, `detectDefaultLanguage`) |
+| `app.js` | DOM controller; the only module that touches `document`/`window`/`alert`/`confirm` |
 
-Testdateien (`logic.test.js`, `io.test.js`, `store.test.js`, `i18n.test.js`) spiegeln die vier
-Logik-Module 1:1. `app.js` hat bewusst keine automatisierten Tests (Begründung in
-CONTRIBUTING.md); seine Korrektheit wird während der Entwicklung per
-Playwright-End-to-End-Durchläufen geprüft.
+Test files (`logic.test.js`, `io.test.js`, `store.test.js`, `i18n.test.js`) mirror the four
+logic modules 1:1. `app.js` deliberately has no automated tests (rationale in
+CONTRIBUTING.md); its correctness is checked during development via Playwright end-to-end
+runs.
 
-## Funktionale Anforderungen
+## Functional requirements
 
-### 1. Grundraster (Tabelle)
+### 1. Base grid (table)
 
-- Kopfzeile: Tages-Spalten, jede in einer Regenbogenfarbe (zyklisch nach Spaltenposition
-  vergeben, nicht an bestimmte Wochentage gebunden — siehe Punkt 1a).
-- Linke Spalte "Zeit": ein frei editierbares Textfeld pro Zeile, kein erzwungenes Format
-  (bestimmte Features — Raster-Presets, Sub-Raster-Anzeige, Jetzt-Hervorhebung —
-  funktionieren nur korrekt, wenn der Text dem Muster `HH:MM–HH:MM` entspricht; alles andere
-  wird als undurchsichtiger Text behandelt und degradiert graceful).
-- Start: 10 leere Zeilen, 7 Tages-Spalten (Standardnamen abhängig von der aktuellen
-  Sprache, siehe Punkt 14).
-- Zeilen können hinzugefügt ("+ Zeile hinzufügen") und wieder entfernt werden (×-Button pro
-  Zeile).
-  - Enthält die zu entfernende Zeile Termine (eigene oder durch einen mehrzeiligen Termin
-    belegte), wird vor dem Entfernen eine Bestätigung verlangt.
-  - Entfernen verschiebt alle späteren Termine um eine Zeile nach oben und
-    verkürzt/löscht mehrzeilige Termine, die über die entfernte Zeile hinwegreichten.
+- Header row: day columns, each in a rainbow color (assigned cyclically by column position,
+  not tied to specific weekdays — see item 1a).
+- Left "Time" column: a freely editable text field per row, no enforced format (certain
+  features — grid presets, sub-raster display, the now-highlight — only work correctly if the
+  text matches the `HH:MM–HH:MM` pattern; anything else is treated as opaque text and degrades
+  gracefully).
+- Start: 10 empty rows, 7 day columns (default names depend on the current language, see item
+  14).
+- Rows can be added ("+ Add row") and removed again (a × button per row).
+  - If the row to be removed contains entries (its own, or ones a multi-row entry occupies),
+    a confirmation is required before removing it.
+  - Removing shifts all later entries up by one row and shortens/deletes multi-row entries
+    that reached across the removed row.
 
-### 1a. Tagesspalten: hinzufügen, umbenennen, entfernen
+### 1a. Day columns: add, rename, remove
 
-- Jede Spaltenüberschrift ist direkt inline editierbar (`contenteditable`, analog zum
-  Plantitel, Punkt 6) — Klicken benennt die Spalte um.
-- "+" am rechten Ende der Kopfzeile fügt eine neue Spalte hinzu (automatisch benannt "Tag N"
-  / "Day N" je nach Sprache, um Kollisionen zu vermeiden) und fokussiert/selektiert sofort
-  den Namen zum Umbenennen.
-- ×-Button pro Spaltenkopf entfernt diese Spalte. Enthält sie Termine, wird vorher eine
-  Bestätigung verlangt. Die letzte verbleibende Spalte kann nicht entfernt werden
-  (Button deaktiviert).
-- **Wichtig:** Termine werden intern nach Spalten-*Name* (nicht Position) referenziert.
-  Umbenennen einer Spalte verschiebt automatisch alle ihre Termine auf den neuen Namen;
-  Versuche, auf einen bereits vergebenen Namen umzubenennen, werden abgelehnt (Meldung,
-  alter Name bleibt erhalten).
-- Ein Sprachwechsel (Punkt 14) benennt **nie** automatisch bestehende Spalten um — nur neu
-  angelegte Pläne/Spalten bekommen die Standardnamen der aktuell gewählten Sprache. Das
-  verhindert stille Datenmanipulation an bestehenden Plänen.
+- Every column header is directly inline-editable (`contenteditable`, same as the plan title,
+  item 6) — clicking renames the column.
+- A "+" at the right end of the header row adds a new column (auto-named "Tag N" / "Day N"
+  depending on language, to avoid collisions) and immediately focuses/selects the name for
+  renaming.
+- A × button per column header removes that column. If it contains entries, a confirmation is
+  required first. The last remaining column can't be removed (button disabled).
+- **Important:** entries are internally referenced by column *name* (not position). Renaming
+  a column automatically moves all its entries to the new name; attempts to rename to an
+  already-taken name are rejected (a message is shown, the old name is kept).
+- A language switch (item 14) renames a column only when it still matches its old language's
+  default weekday name exactly at that position — a manually renamed column is never touched.
+  See item 12 for the full rule and its collision handling.
 
-### 2. Zeitraster-Hilfe ("Zeiten festlegen")
+### 2. Time-grid helper ("Set time grid")
 
-Modal mit zwei Wegen, die Zeitspalte zu befüllen:
+A modal with two ways to fill in the time column:
 
-a. **Feste Presets**: TU Dresden (Doppelstunden), RWTH Aachen (Blockraster) — je 8 fixe
-   Zeit-Labels.
-b. **Eigenes Raster**: Intervall in **Minuten** (erlaubt Sub-Stunden-Takte wie 10 oder 15
-   Minuten) + Start-/Endzeit über native `<input type="time">`-Felder, sodass das Raster an
-   jeder beliebigen Minute starten kann (z. B. 7:50).
+a. **Fixed presets**: TU Dresden (double periods), RWTH Aachen (block schedule) — 8 fixed
+   time labels each.
+b. **Custom grid**: interval in **minutes** (allows sub-hour ticks like 10 or 15 minutes) +
+   start/end time via native `<input type="time">` fields, so the grid can start at any
+   minute (e.g. 7:50).
 
-Anwenden eines Presets/Rasters:
-- Erhöht die Zeilenzahl bei Bedarf (verkleinert sie nie).
-- Überschreibt nur die ersten N Zeit-Labels; falls dort schon abweichende Werte stehen, wird
-  vorher eine Bestätigung verlangt.
-- Rührt Termine (Entries) nie an.
+Applying a preset/grid:
+- Increases the row count if needed (never shrinks it).
+- Only overwrites the first N time labels; if they already hold different values, a
+  confirmation is required first.
+- Never touches entries.
 
-### 3. Termine (Entries)
+### 3. Entries
 
-- Klick auf eine Zelle (oder Drag, siehe Punkt 4) öffnet ein Modal zum Hinzufügen/Bearbeiten.
-- Felder: Titel (Pflicht), Beschreibung (optional), Link (optional, URL), Start/Ende
-  (optional, `HH:MM`, unabhängig vom Zeilen-Zeitlabel — siehe Punkt 5).
-- Speichern mit leerem Titel löscht den Termin (entspricht "Löschen").
-- Expliziter "Löschen"-Button entfernt den Termin.
+- Clicking a cell (or dragging, see item 4) opens a modal to add/edit.
+- Fields: title (required), description (optional), link (optional, URL), start/end
+  (optional, `HH:MM`, independent of the row's time label — see item 5).
+- Saving with an empty title deletes the entry (equivalent to "Delete").
+- An explicit "Delete" button removes the entry.
 
-### 4. Mehrzeilige Termine (Drag-Auswahl)
+### 4. Multi-row entries (drag-select)
 
-- Klick-und-Ziehen vertikal innerhalb **einer** Tages-Spalte wählt einen zusammenhängenden
-  Zeilenbereich aus; Loslassen öffnet das Termin-Modal für genau diesen Bereich.
-- Der resultierende Termin wird einmalig an seiner ersten (Anker-)Zeile gespeichert, mit
-  einem `span` (Zeilenanzahl), und als eine verschmolzene Zelle (`rowspan`) dargestellt.
-- Zieht man eine neue Auswahl, die einen bestehenden Termin ganz oder teilweise
-  überschneidet, ersetzt das Speichern diesen bestehenden Termin.
-- Ein einfacher Klick (kein Drag) auf eine bereits befüllte Zelle öffnet den bestehenden
-  Termin zur Bearbeitung, mit unverändertem Span.
-- **Invariante:** Termine überlappen sich für denselben Tag nie. Das ist die gesamte
-  "Kollisionsbehandlung" — durchgesetzt beim Schreiben (überlappende bestehende Einträge
-  werden vor dem Speichern eines neuen Bereichs entfernt), keine separate Laufzeit-Prüfung
-  nötig.
+- Clicking and dragging vertically within **one** day column selects a contiguous row range;
+  releasing opens the entry modal for exactly that range.
+- The resulting entry is stored once, at its first (anchor) row, with a `span` (row count),
+  and rendered as one merged cell (`rowspan`).
+- Dragging a new selection that fully or partially overlaps an existing entry replaces that
+  existing entry on save.
+- A plain click (no drag) on an already-filled cell opens the existing entry for editing,
+  with its span unchanged.
+- **Invariant:** entries never overlap for the same day. That's the entirety of "collision
+  handling" — enforced on write (overlapping existing entries are removed before saving a new
+  range), no separate runtime check needed.
 
-### 5. Sub-Raster-Zeiten (unabhängig vom Zeilenraster)
+### 5. Sub-raster times (independent of the row grid)
 
-- Ein Termin kann optional eigene `startTime`/`endTime` (`HH:MM`) tragen, unabhängig vom
-  Zeilen-Zeitlabel der Zeile(n), die er belegt.
-- **Zweck:** Ein Termin soll mitten in einer Zeile beginnen/enden können (z. B. ein
-  15-minütiger Call um 08:10–08:25 innerhalb einer 08:00–09:00-Zeile), ohne dass das gesamte
-  Raster so fein aufgelöst sein muss.
-- **Darstellung:** kleines Zeit-Badge über dem Titel; die sichtbare Box des Termins (ein
-  `.entry-box`-Div, absolut innerhalb der `<td>` positioniert, statt die `<td>` selbst zu
-  färben/umranden) wird zusätzlich innerhalb ihrer Zelle verschoben — pixelbasiert per
-  `top`/`bottom`, proportional dazu, wo die Zeit innerhalb der Gesamtzeitspanne der belegten
-  Zeile(n) liegt (bewusst Pixel statt CSS-Prozent, siehe oben). Wichtig: verschoben wird die
-  **Box selbst** (ihre Ober-/Unterkante), nicht nur ihr Inhalt per Padding — sonst wirkt es
-  so, als würde nur der Text nach unten rutschen, während die Zelle optisch schon vorher
-  beginnt, was bei einem mehrzeiligen Termin mit spätem Start seltsam aussieht. Das ist eine
-  **Näherung fürs Auge**, kein pixelgenauer Kalender — und fällt auf "keine Verschiebung"
-  zurück, wenn die Zeilen-Zeitlabels nicht als `HH:MM–HH:MM` parsebar sind (z. B. bei den
-  standardmäßig leeren Zeilen eines frischen Plans).
-- **UX-Absicherung:** Ist im Termin-Modal eine Start-/Endzeit gesetzt, aber die betroffene(n)
-  Zeile(n) haben kein parsebares Zeitlabel, erscheint ein Hinweistext, der das erklärt —
-  statt dass die Einrückung einfach stillschweigend ausbleibt und wie ein Bug wirkt.
-- **Bewusst außerhalb des Scopes:** echte freie (rasterunabhängige) Positionierung mit
-  eigener Kollisionslogik wie in einem echten Kalender-UI. Das Zeilenraster bleibt die
-  Quelle der Wahrheit dafür, was einen Zeitslot belegen darf; Sub-Raster-Zeiten sind eine
-  reine Anzeige-Ebene obendrauf. Diese Entscheidung wurde bewusst getroffen, um Datenmodell
-  und Kollisionsbehandlung einfach zu halten.
+- An entry can optionally carry its own `startTime`/`endTime` (`HH:MM`), independent of the
+  time label of the row(s) it occupies.
+- **Purpose:** an entry should be able to start/end in the middle of a row (e.g. a 15-minute
+  call at 08:10–08:25 inside an 08:00–09:00 row), without the whole grid needing to be that
+  finely resolved.
+- **Display:** a small time badge above the title; the entry's visible box (an `.entry-box`
+  div, positioned absolutely within the `<td>` rather than coloring/outlining the `<td>`
+  itself) is additionally shifted within its cell — pixel-based via `top`/`bottom`,
+  proportional to where the time sits within the total time span of the occupied row(s)
+  (deliberately pixels instead of CSS percent, see above). Important: it's the **box itself**
+  that shifts (its top/bottom edge), not just its content via padding — otherwise it looks
+  like only the text slides down while the cell visually already starts earlier, which looks
+  odd for a multi-row entry with a late start. This is a **visual approximation**, not a
+  pixel-perfect calendar — and falls back to "no shift" when the row time labels aren't
+  parseable as `HH:MM–HH:MM` (e.g. the empty rows a fresh plan starts with).
+- **UX safeguard:** if a start/end time is set in the entry modal but the affected row(s)
+  don't have a parseable time label, a hint text appears explaining that — instead of the
+  inset just silently not happening and looking like a bug.
+- **Deliberately out of scope:** genuinely free (grid-independent) positioning with its own
+  collision logic, like a real calendar UI. The row grid remains the source of truth for what
+  may occupy a time slot; sub-raster times are a pure display layer on top. This decision was
+  made deliberately, to keep the data model and collision handling simple.
 
-### 6. Editierbarer Titel
+### 6. Editable title
 
-- Die Überschrift (`<h1>`, Planname) ist direkt inline editierbar (`contenteditable`). Enter
-  bestätigt (blur), ohne einen Zeilenumbruch einzufügen; blur übernimmt den getrimmten,
-  nicht-leeren Namen (leer → Fallback auf sprachabhängigen Standardnamen, Punkt 14).
-- Umbenennen aktualisiert: die Anzeige, `document.title`
-  (`"{Name} · {Stundenplan|Schedule}"`), und den Eintrag im Plan-Switcher.
+- The heading (`<h1>`, plan name) is directly inline-editable (`contenteditable`). Enter
+  confirms (blurs) without inserting a line break; blur commits the trimmed, non-empty name
+  (empty → falls back to the language-dependent default name, item 14).
+- Renaming updates: the display, `document.title` (`"{name} · {Stundenplan|Schedule}"`), and
+  the entry in the plan switcher.
 
-### 7. Mehrere Stundenpläne
+### 7. Multiple schedules
 
-- Ein Plan = `{ id, name, days[], rowCount, times[], entries{} }`.
-- Dropdown listet alle Pläne nach Name; Auswahl wechselt den aktiven Plan und rendert alles
-  neu.
-- "+" legt einen neuen leeren Plan an (automatisch benannt, sprachabhängig, mit
-  Kollisionsvermeidung) und fokussiert/selektiert sofort den Titel zum Umbenennen.
-- 🗑 löscht den aktuellen Plan nach Bestätigung; der letzte verbleibende Plan kann nicht
-  gelöscht werden (Button deaktiviert).
-- Alle Pläne liegen gemeinsam unter einem `localStorage`-Schlüssel; Planwechsel ist
-  sofort/lokal, kein Reload nötig.
+- A plan = `{ id, name, days[], rowCount, times[], entries{} }`.
+- A dropdown lists all plans by name; selecting one switches the active plan and re-renders
+  everything.
+- "+" creates a new empty plan (auto-named, language-dependent, with collision avoidance) and
+  immediately focuses/selects the title for renaming.
+- 🗑 deletes the current plan after confirmation; the last remaining plan can't be deleted
+  (button disabled).
+- All plans live together under one `localStorage` key; switching plans is instant/local, no
+  reload needed.
 
 ### 8. Export / Import
 
-- Export lädt den aktiven Plan als eingerücktes, für Menschen lesbares/editierbares JSON
-  herunter, Dateiname aus dem (slugifizierten) Plannamen.
-- JSON-Form: `{ app: "vibe-stundenplan", version: 1, plan: { name, days, rowCount, times, entries } }`.
-  Vollständige Feld-für-Feld-Spezifikation inkl. Fallback-Regeln und JSON-Schema-Entwurf:
-  siehe [EXPORT_FORMAT.md](EXPORT_FORMAT.md).
-- Import liest so eine Datei und legt sie als **neuen** Plan an (überschreibt nie einen
-  bestehenden Plan), wechselt danach automatisch dorthin.
-- Import ist defensiv: fehlende/kaputte Felder fallen auf sinnvolle, sprachabhängige
-  Defaults zurück (fehlender Name → "Importierter Plan"/"Imported Schedule", ungültiges
-  `rowCount` → 10, `times` kein Array → `[]`, `entries` kein Objekt → `{}`, `days` fehlt/leer
-  /enthält Leerstrings → Standard-Wochentage der aktuellen UI-Sprache) statt abzustürzen.
-- `entries` werden roh durchgereicht (kein Feld-Allowlist in `io.js`) — `span`, `startTime`,
-  `endTime` etc. werden automatisch mit exportiert/importiert, ohne dass `io.js` jedes
-  Entry-Feld einzeln kennen muss.
-- Der exportierte Plan trägt die Tagesnamen exakt so, wie sie zum Exportzeitpunkt hießen
-  (egal in welcher Sprache/wie umbenannt) — beim Import werden sie unverändert übernommen.
+- Export downloads the active plan as indented, human-readable/editable JSON, with a filename
+  derived from the (slugified) plan name.
+- JSON shape: `{ app: "vibe-stundenplan", version: 1, plan: { name, days, rowCount, times, entries } }`.
+  Full field-by-field specification including fallback rules and a JSON Schema draft: see
+  [EXPORT_FORMAT.md](EXPORT_FORMAT.md).
+- Import reads such a file and creates it as a **new** plan (never overwrites an existing
+  plan), then automatically switches to it.
+- Import is defensive: missing/broken fields fall back to sensible, language-dependent
+  defaults (missing name → "Importierter Plan"/"Imported Schedule", invalid `rowCount` → 10,
+  `times` not an array → `[]`, `entries` not an object → `{}`, `days` missing/empty/contains
+  blank strings → the current UI language's default weekdays) instead of crashing.
+- `entries` are passed through raw (no field allowlist in `io.js`) — `span`, `startTime`,
+  `endTime`, etc. are automatically exported/imported without `io.js` needing to know every
+  entry field individually.
+- The exported plan carries the day names exactly as they were named at export time (whatever
+  language/however renamed) — import takes them over unchanged.
 
-### 9. Persistenz & Migration
+### 9. Persistence & migration
 
-- Alle Daten liegen in `localStorage`, Schlüssel `stundenplan-store-v1`, kein
-  Backend/Account.
-- Beim ersten Laden ohne vorhandenen Store wird das ältere Einzelplan-Format (Schlüssel
-  `stundenplan-data-v1`, aus der Zeit vor Multi-Plan-Unterstützung) automatisch in einen
-  einzelnen Plan migriert, damit ein App-Update keine bestehenden Daten verliert.
-- Ein kaputter/unlesbarer Legacy-Wert wird ignoriert (Fallback auf einen frischen leeren
-  Plan) statt die App abstürzen zu lassen.
-- Pläne, die vor Einführung der Tagesspalten-Anpassbarkeit gespeichert wurden (kein `days`
-  -Feld), werden beim Laden automatisch mit den Standard-Wochentagen aufgefüllt.
+- All data lives in `localStorage`, key `stundenplan-store-v1`, no backend/account.
+- On first load with no existing store, the older single-plan format (key
+  `stundenplan-data-v1`, from before multi-plan support) is automatically migrated into a
+  single plan, so an app update never loses existing data.
+- A broken/unreadable legacy value is ignored (falls back to a fresh empty plan) instead of
+  crashing the app.
+- Plans saved before day columns became customizable (no `days` field) are automatically
+  backfilled with the default weekdays on load.
 
-### 10. Tastatur-Bedienung
+### 10. Keyboard operation
 
-- Beide Modals (Termin, Zeitraster) sind echte `<form>`-Elemente.
-- Enter in einem einzeiligen Feld (Titel, Link, Start-/Endzeit, Raster-Eingaben) sendet das
-  Formular ab (speichert / wendet das Raster an).
-- Enter im mehrzeiligen "Beschreibung"-Feld fügt wie gewohnt einen Zeilenumbruch ein (kein
-  Submit) — normales HTML-Formularverhalten, keine Sonderbehandlung nötig.
-- Escape schließt das jeweils offene Modal, verwirft ungespeicherte Änderungen.
-- Tab-Reihenfolge folgt der natürlichen DOM-Reihenfolge der Felder.
+- Both modals (entry, time grid) are real `<form>` elements.
+- Enter in a single-line field (title, link, start/end time, grid inputs) submits the form
+  (saves / applies the grid).
+- Enter in the multi-line "Description" field inserts a line break as usual (no submit) —
+  normal HTML form behavior, no special handling needed.
+- Escape closes whichever modal is open, discarding unsaved changes.
+- Tab order follows the fields' natural DOM order.
 
-### 11. Jetzt-Hervorhebung
+### 11. Now-highlight
 
-- Die Zeile, deren Zeitlabel die aktuelle Uhrzeit umschließt (`HH:MM–HH:MM`-Format
-  vorausgesetzt), wird in der Zeit-Spalte optisch hervorgehoben.
-- Die Spalte, deren Name dem heutigen Wochentag entspricht (Vergleich gegen die
-  Standard-Wochentagsnamen der aktuellen UI-Sprache — funktioniert also nur, solange die
-  entsprechende Spalte nicht umbenannt/entfernt wurde), wird im Spaltenkopf hervorgehoben.
-- Liegt an der Kreuzung aus aktueller Zeile und heutiger Spalte ein Termin (auch ein
-  mehrzeiliger, dessen Anker weiter oben liegt), wird genau diese Zelle zusätzlich
-  hervorgehoben.
-- Aktualisiert sich automatisch alle 30 Sekunden sowie nach jeder Neu-Darstellung der
-  Tabelle (z. B. nach dem Speichern eines Termins).
+- The row whose time label encloses the current time (assuming `HH:MM–HH:MM` format) is
+  visually highlighted in the time column.
+- The column whose name matches today's weekday (compared against the current UI language's
+  default weekday names — so this only works as long as that column hasn't been
+  renamed/removed) is highlighted in the column header.
+- If there's an entry at the intersection of the current row and today's column (including a
+  multi-row one whose anchor is further up), that exact cell is additionally highlighted.
+- Refreshes automatically every 30 seconds, as well as after every re-render of the table
+  (e.g. after saving an entry).
 
-### 12. Mehrsprachigkeit (Deutsch/Englisch)
+### 12. Internationalization (German/English)
 
-- Vollständige UI-Übersetzung ins Englische, umschaltbar über einen Sprachwähler im Header
-  (zeigt "Deutsch"/"English" — Sprachnamen bleiben bewusst in ihrer eigenen Sprache,
-  unabhängig von der aktuell gewählten UI-Sprache).
-- **Automatische Erkennung beim ersten Laden:** Standardsprache wird aus
-  `navigator.language` abgeleitet — nur ein explizit deutscher Wert (`de`, `de-DE`, `de-AT`,
-  …) wählt Deutsch, alles andere (inkl. keinem Wert) English. Hintergrund: deutschsprachige
-  Nutzer verwenden häufig ein englischsprachiges Browser-/Betriebssystem-UI, daher lieber
-  konservativ auf Englisch defaulten als anzunehmen, jeder Deutsch-Text-Leser habe eine
-  deutsche Systemsprache.
-- Die gewählte Sprache wird pro Browser (nicht pro Plan) in `localStorage` gespeichert und
-  bleibt über Reloads erhalten; jeder Plan kann trotzdem einen eigenen Titel in beliebiger
-  Sprache/Formulierung haben.
-- Übersetzt werden: alle Button-/Label-/Platzhalter-Texte, Modal-Titel, Confirm-/Alert-
-  Dialoge, Fehlermeldungen, sowie die *Standardwerte* für neue Pläne/Spalten (Plannamen,
-  Tagesnamen). **Nicht** automatisch übersetzt werden vom Nutzer selbst eingegebene Inhalte
-  (Termin-Titel, Beschreibungen, umbenannte Spalten-/Plannamen) — das sind freie
-  Texteingaben, keine UI-Strings.
-- **Bestehende Tagesspalten beim Sprachwechsel:** Ein Spaltenname, der noch exakt dem
-  Standard-Wochentagsnamen der *bisherigen* Sprache an seiner Position entspricht (der Nutzer
-  hat ihn also nie umbenannt), wird beim Umschalten auf den Standardnamen der *neuen* Sprache
-  an derselben Position aktualisiert — z. B. wird aus "Montag" beim Wechsel zu Englisch
-  automatisch "Monday". Eine manuell umbenannte Spalte (z. B. "Lerntag" statt "Montag") gilt
-  nicht mehr als "Standard" und bleibt unverändert, da es dann freier Text ist, kein
-  UI-String mehr. Das gilt plan-übergreifend (alle gespeicherten Pläne, nicht nur der aktive)
-  und für Spalten jenseits der ersten 7 (z. B. eine hinzugefügte 8. Spalte), die ohnehin nie
-  einem Wochentags-Default entsprechen und daher unangetastet bleiben. Einträge und manuell
-  gesetzte Spaltenbreiten (Punkt 18) an einer übersetzten Spalte werden mit umgehängt
-  (`translateDefaultDayNames` in `logic.js`, nutzt intern dieselbe Umhäng-Logik wie eine
-  manuelle Umbenennung). Eine Übersetzung, die zu einem Namenskonflikt mit einer anderen
-  Spalte führen würde, wird übersprungen (die Spalte behält ihren alten Namen), um die
-  Eindeutigkeits-Invariante der Spaltennamen nicht zu verletzen.
-- Architektur: ein zentrales Wörterbuch (`i18n.js`, `{ de: {...}, en: {...} }`) plus ein
-  `translate(language, key, params)`-Helfer mit `{param}`-Interpolation. Kein
-  i18n-Framework, keine zusätzliche Laufzeit-Abhängigkeit. Details zur Konvention (wie neue
-  Strings ergänzt werden) stehen in CONTRIBUTING.md.
-- Native Formularelemente wie `<input type="time">` folgen dabei weiterhin der
-  Locale-Einstellung des jeweiligen Browsers/Betriebssystems (z. B. 12h-AM/PM- vs.
-  24h-Anzeige) — das ist Browser-/OS-Verhalten, nicht von der Seite aus steuerbar, und
-  bewusst nicht nachgebaut (kein eigener Zeit-Picker, um keine unnötige Komplexität
-  einzuführen).
+- Full UI translation into English, switchable via a language selector in the header (shows
+  "Deutsch"/"English" — language names deliberately stay in their own language, regardless of
+  the currently selected UI language).
+- **Automatic detection on first load:** the default language is derived from
+  `navigator.language` — only an explicitly German value (`de`, `de-DE`, `de-AT`, …) selects
+  German, everything else (including no value) selects English. Rationale: German-speaking
+  users frequently run an English-language browser/OS UI, so it's safer to default
+  conservatively to English than to assume every German-text reader has a German system
+  language.
+- The selected language is stored per browser (not per plan) in `localStorage` and persists
+  across reloads; each plan can still have its own title in any language/wording.
+- What gets translated: all button/label/placeholder text, modal titles, confirm/alert
+  dialogs, error messages, and the *default values* for new plans/columns (plan names, day
+  names). **Not** automatically translated: content the user entered themselves (entry
+  titles, descriptions, renamed column/plan names) — those are free-form text input, not UI
+  strings.
+- **Existing day columns on a language switch:** a column name that still matches exactly the
+  *previous* language's default weekday name at its position (i.e. the user never renamed it)
+  gets updated to the *new* language's default name at the same position when switching — e.g.
+  "Montag" automatically becomes "Monday" when switching to English. A manually renamed
+  column (e.g. "Study day" instead of "Monday") no longer counts as a "default" and stays
+  unchanged, since at that point it's free text, not a UI string. This applies across all
+  stored plans (not just the active one), and to columns beyond the first 7 (e.g. an added
+  8th column), which never match a weekday default anyway and so stay untouched. Entries and
+  manually set column widths (item 18) on a translated column get moved along with it
+  (`translateDefaultDayNames` in `logic.js`, internally reuses the same remap logic as a
+  manual rename). A translation that would create a name collision with another column is
+  skipped (the column keeps its old name), to preserve the column-name uniqueness invariant.
+- Architecture: a central dictionary (`i18n.js`, `{ de: {...}, en: {...} }`) plus a
+  `translate(language, key, params)` helper with `{param}` interpolation. No i18n framework,
+  no extra runtime dependency. Convention details (how to add new strings) are in
+  CONTRIBUTING.md.
+- Native form controls like `<input type="time">` still follow the respective
+  browser's/OS's locale setting (e.g. 12h AM/PM vs. 24h display) — that's browser/OS
+  behavior, not controllable from the page, and deliberately not reimplemented (no custom
+  time picker, to avoid unnecessary complexity).
 
 ### 13. CI / Tests
 
-- Unit-Tests über Node's eingebauten Test-Runner (`node --test`, aufgerufen als
-  `npm test`), keine externe Test-Abhängigkeit für die App selbst.
-- Ein Testfile pro Logik-Modul (`logic.test.js`, `io.test.js`, `store.test.js`,
+- Unit tests via Node's built-in test runner (`node --test`, invoked as `npm test`), no
+  external test dependency for the app itself.
+- One test file per logic module (`logic.test.js`, `io.test.js`, `store.test.js`,
   `i18n.test.js`).
-- `store.test.js` verwendet ein kleines In-Memory-Fake für `localStorage`
-  (dependency-injected über `loadStore(storage, defaultLanguage)` /
-  `saveStore(store, storage)`), braucht also keinen Browser/DOM.
-- GitHub-Actions-Workflow `ci.yml` läuft bei jedem Push auf `main` und bei jedem Pull
-  Request.
+- `store.test.js` uses a small in-memory fake for `localStorage` (dependency-injected via
+  `loadStore(storage, defaultLanguage)` / `saveStore(store, storage)`), so it needs no
+  browser/DOM.
+- The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull
+  request.
 
-### 14. Deployment & Screenshots
+### 14. Deployment & screenshots
 
-- GitHub-Actions-Workflow `deploy-pages.yml` deployt die statische Seite (Repo-Root
-  unverändert, kein Build) auf GitHub Pages bei jedem Push auf `main`.
-- Live-URL: https://fionapreroll.github.io/vibe-stundenplan/
-- GitHub-Actions-Workflow `screenshots.yml` generiert bei jedem Push auf `main`
-  (`paths-ignore: screenshots/**`, um Endlosschleifen zu vermeiden) automatisch neue
-  README-Screenshots (`scripts/screenshots.js`, treibt die App per Playwright mit
-  Beispielinhalten und fotografiert Hauptansicht + beide Modals) und committet sie mit
-  `[skip ci]` zurück, falls sie sich geändert haben.
-- Das ist die einzige Stelle im Projekt mit einer echten npm-Laufzeitabhängigkeit
-  (Playwright, devDependency) — betrifft nur dieses Tooling, nie den App-Code selbst
-  (siehe "Technische Rahmenbedingungen" oben).
+- The `deploy-pages.yml` GitHub Actions workflow deploys the static site (repo root
+  unchanged, no build) to GitHub Pages on every push to `main`.
+- Live URL: https://fionapreroll.github.io/vibe-stundenplan/
+- The `screenshots.yml` GitHub Actions workflow generates fresh README screenshots on every
+  push to `main` (`paths-ignore: screenshots/**`, to avoid infinite loops) automatically
+  (`scripts/screenshots.js`, drives the app via Playwright with example content and
+  photographs the main view + both modals) and commits them back with `[skip ci]` if they
+  changed.
+- That's the only place in the project with a real npm runtime dependency (Playwright,
+  devDependency) — affects only this tooling, never the app code itself (see "Technical
+  constraints" above).
 
-### 15. Druckansicht
+### 15. Print view
 
-- "🖨 Drucken"-Button ruft `window.print()` auf; ein `@media print`-Stylesheet reduziert
-  die Ansicht auf Plantitel + Tabelle.
-- Ausgeblendet werden: Plan-Switcher, Sprachwahl, alle Aktions-Buttons, Bearbeitungssymbole
-  (Zeilen/Spalten entfernen, Spalte hinzufügen, leere-Zelle-"+"), Modals. Der Titel verliert
-  seine editierbar-wirkende Umrandung (kein `contenteditable`-Styling im Druck, auch wenn
-  das Attribut technisch aktiv bleibt).
-- Die Regenbogenfarben der Kopfzeile und gefüllter Zellen werden per
-  `print-color-adjust: exact` erzwungen, da sie ein inhaltliches Merkmal sind (Farbcodierung
-  der Wochentage), nicht nur Dekoration, die ein sparsamer Browser-Druck sonst wegließe.
-- Die Zeitspalte wird im Druck breiter dargestellt als am Bildschirm (dort schmal gehalten,
-  um Platz für Tablet-Breiten zu sparen), damit volle Zeit-Labels nicht abgeschnitten
-  werden; Platzhaltertext ("z. B. …") in noch nicht befüllten Zeit-Feldern wird im Druck
-  unsichtbar (`::placeholder { color: transparent }`), damit leere Zeilen nicht wie
-  Formularfelder aussehen.
-- `@page { size: landscape }` als Hinweis an den Browser — Weekly-Tabellen sind breiter als
-  hoch, auch wenn nicht jeder Browser/jedes Betriebssystem das automatisch übernimmt (dann
-  wählt die Nutzerin Querformat manuell im Druckdialog).
-- Bewusst **nicht** umgesetzt: automatisches Ausblenden komplett leerer Zeilen im Druck
-  (Papier sparen) — die Druckansicht zeigt exakt das, was auch am Bildschirm zu sehen ist,
-  minus Bedienelemente, ohne zusätzliche Content-Filterung.
+- The "🖨 Print" button calls `window.print()`; a `@media print` stylesheet reduces the view
+  to the plan title + table.
+- Hidden: the plan switcher, language selector, all action buttons, edit icons (remove
+  row/column, add column, the empty-cell "+"), modals. The title loses its
+  editable-looking outline (no `contenteditable` styling in print, even though the attribute
+  technically stays active).
+- The header row's and filled cells' rainbow colors are forced via `print-color-adjust:
+  exact`, since they're a content feature (weekday color-coding), not mere decoration that a
+  frugal browser print would otherwise drop.
+- The time column renders wider in print than on screen (kept narrow on screen to save space
+  at tablet widths), so full time labels aren't clipped; placeholder text ("e.g. …") in
+  not-yet-filled time fields becomes invisible in print (`::placeholder { color: transparent
+  }`), so empty rows don't look like form fields.
+- `@page { size: landscape }` as a hint to the browser — weekly tables are wider than they are
+  tall, even though not every browser/OS picks that up automatically (in which case the user
+  picks landscape manually in the print dialog).
+- Deliberately **not** implemented: automatically hiding fully empty rows in print (to save
+  paper) — the print view shows exactly what's visible on screen, minus controls, with no
+  extra content filtering.
 
-### 16. Bearbeitungssymbole abschaltbar
+### 16. Toggleable edit icons
 
-- Checkbox im Header ("Bearbeitungssymbole anzeigen"/"Show edit icons") blendet die
-  Zeilen-/Spalten-Entfernen-×, den Spalte-hinzufügen-"+" und das "+" in leeren Zellen aus.
-- Reine Anzeige-Einstellung: Die zugrunde liegende Interaktion (Zelle anklicken, Drag-Auswahl,
-  Umbenennen per Klick) bleibt vollständig funktionsfähig, auch wenn die Symbole ausgeblendet
-  sind — kein "Edit-Lock", nur Aufräumen der Optik (z. B. für ruhigere Ansicht/Präsentation).
-- Persistiert pro Browser (wie die Sprache), nicht pro Plan — `store.showEditIcons`
-  (`getShowEditIcons`/`setShowEditIcons` in `store.js`), Default `true`.
-- Unabhängig davon blendet die Druckansicht (Punkt 15) dieselben Symbole *immer* aus,
-  unabhängig vom aktuellen Toggle-Zustand — Druck soll nie interaktive UI zeigen.
+- A checkbox in the header ("Show edit icons") hides the row/column-remove ×, the
+  add-column "+", and the "+" in empty cells.
+- A pure display setting: the underlying interaction (clicking a cell, drag-select, renaming
+  by click) stays fully functional even with the icons hidden — not an "edit lock", just a
+  visual cleanup (e.g. for a calmer view/presentation).
+- Persisted per browser (like the language), not per plan — `store.showEditIcons`
+  (`getShowEditIcons`/`setShowEditIcons` in `store.js`), default `true`.
+- Independently of that, the print view (item 15) *always* hides these same icons regardless
+  of the current toggle state — print should never show interactive UI.
 
-### 17. Responsives Layout & Mobile
+### 17. Responsive layout & mobile
 
-- Die Tabelle nutzt `table-layout: fixed` statt `auto`: Bei automatischem Layout bestimmen
-  Formularelemente (das Zeit-`<input>`) ihre natürliche/intrinsische Breite und ignorieren
-  dabei kleine `min-width`-Vorgaben weitgehend — das trieb die Zeitspalte auf über 220px
-  Breite hoch, obwohl nur ~90px vorgesehen waren. Mit `table-layout: fixed` bestimmt die
-  deklarierte Breite der Zeitspalte direkt die Spaltenbreite; Tagesspalten ohne eigene
-  `width`-Angabe teilen sich den verbleibenden Platz automatisch gleichmäßig — bei
-  beliebiger Spaltenzahl, nicht nur den ursprünglichen 7.
-- Ergebnis: Die initiale 7-Tage-Ansicht braucht auf Tablet-Breite (≥ 768px) und größer kein
-  horizontales Scrollen mehr (vorher: hartes `min-width: 920px` auf der Tabelle, erzwang
-  Scrollen schon ab knapp 950px Fensterbreite). Das umfasst auch alle gängigen
-  Smartphone-Querformat-Breiten (getestet 667–926px) — deckt damit einen praktisch
-  relevanten Teil des "Mobile Landscape"-Falls ab.
-- Ein `min-width: 600px` auf der Tabelle bleibt als Untergrenze: darunter (z. B.
-  Smartphone-Hochformat, ~375–430px) scrollt `.table-wrap` horizontal statt Spalten
-  weiter zusammenzudrücken — 7+ Spalten lassen sich auf Hochformat-Handybreite nicht
-  verlustfrei ohne Scrollen darstellen ("sofern möglich" heißt hier: möglich ab Tablet
-  aufwärts, nicht bei jeder Bildschirmgröße).
-- Tages-Spaltennamen dürfen umbrechen (`white-space: normal; overflow-wrap: anywhere`)
-  statt eine einzelne Zeile zu erzwingen — wichtig, weil Spaltennamen jetzt frei umbenennbar
-  sind (Punkt 1a) und beliebig lang sein können.
-- Modals haben `max-height: 90vh` mit `overflow-y: auto`: Auf kurzen Viewports (z. B.
-  Smartphone im Querformat, ~375–400px Höhe) würde ein nicht begrenztes Modal über den
-  sichtbaren Bereich hinausragen und Buttons (Speichern, Abbrechen) unerreichbar machen.
-  Mit der Begrenzung wird das Modal stattdessen intern scrollbar; alle Felder und Buttons
-  bleiben erreichbar.
-- Bewusst **nicht** umgesetzt: eine responsive Anpassung der festen Zeilenhöhe (70px,
-  siehe Punkt 5 — `ROW_HEIGHT_PX` in `app.js`). Eine kleinere mobile Zeilenhöhe würde mit
-  der Pixel-Berechnung für Sub-Raster-Einrückung kollidieren, sofern `ROW_HEIGHT_PX` nicht
-  ebenfalls dynamisch aus dem tatsächlich gerenderten Wert gelesen würde — als bewusst
-  einfach gehaltene Abwägung vorerst nicht angegangen.
+- The table uses `table-layout: fixed` instead of `auto`: under automatic layout, form
+  controls (the time `<input>`) determine their natural/intrinsic width and largely ignore
+  small `min-width` hints — that drove the time column to over 220px wide, even though only
+  ~90px was intended. With `table-layout: fixed`, the time column's declared width directly
+  determines the column width; day columns without their own `width` share the remaining
+  space automatically and evenly — for any column count, not just the original 7.
+- Result: the initial 7-day view no longer needs horizontal scrolling at tablet width (≥
+  768px) and above (previously: a hard `min-width: 920px` on the table forced scrolling
+  starting at just under 950px window width). This also covers every common smartphone
+  landscape width (tested 667–926px) — covering a practically relevant part of the "mobile
+  landscape" case.
+- A `min-width: 600px` on the table remains as a floor: below that (e.g. smartphone portrait,
+  ~375–430px), `.table-wrap` scrolls horizontally instead of squeezing columns further — 7+
+  columns can't be displayed losslessly without scrolling at portrait phone width ("where
+  possible" here means possible from tablet width up, not at every screen size).
+- Day column names are allowed to wrap (`white-space: normal; overflow-wrap: anywhere`)
+  instead of being forced onto one line — important because column names are now freely
+  renamable (item 1a) and can be arbitrarily long.
+- Modals have `max-height: 90vh` with `overflow-y: auto`: on short viewports (e.g. a
+  smartphone in landscape, ~375–400px tall), an unbounded modal would extend past the visible
+  area and make buttons (Save, Cancel) unreachable. With the cap, the modal becomes internally
+  scrollable instead; all fields and buttons stay reachable.
+- Deliberately **not** implemented: a responsive adjustment of the fixed 70px row height (see
+  item 5 — `ROW_HEIGHT_PX` in `app.js`). A smaller mobile row height would collide with the
+  pixel calculation for the sub-raster inset unless `ROW_HEIGHT_PX` were also read dynamically
+  from the actually rendered value — a deliberately simple trade-off left unaddressed for now.
 
-### 18. Manuell verstellbare Spaltenbreiten
+### 18. Manually resizable column widths
 
-- **Anlass:** `table-layout: fixed` (Punkt 17) sorgt zwar für ein Layout ohne Scrollen, aber
-  die feste ~92px-Zeitspalte reicht nicht für jedes Raster — lange Zeitlabels wie
-  "16:40–18:10" wurden im Zeit-`<input>` hart abgeschnitten (Inputs umbrechen ihren Text nie,
-  unabhängig von CSS).
-- **Lösung:** Jede Spalte (Zeit- und Tagesspalten) bekommt am rechten Rand ihres `<th>` einen
-  schmalen Ziehgriff (`.col-resize-handle`, `position: absolute` am Spaltenrand). Ziehen setzt
-  per Maus-Drag eine explizite `width` auf das `<th>` — unter `table-layout: fixed` bestimmt
-  das die Spaltenbreite der ganzen Spalte (Kopf- und Datenzellen). Eine Mindestbreite
-  (`MIN_COL_WIDTH = 60px` in `app.js`) verhindert, dass eine Spalte auf 0 kollabiert.
-  Nicht manuell verstellte Tagesspalten teilen sich weiterhin automatisch den verbleibenden
-  Platz gleichmäßig (unverändertes Verhalten aus Punkt 17).
-- **Persistenz:** Die Zeitspaltenbreite liegt als `plan.timeColWidth` (Zahl oder `null` für
-  Default), Tagesspaltenbreiten als `plan.columnWidths[dayName]` (Objekt, nur für explizit
-  verstellte Spalten). Beim Umbenennen einer Tagesspalte wird der Breiten-Eintrag mit
-  umgehängt (`renameDayWidth` in `logic.js`, analog zu `renameDayEntries`), beim Entfernen
-  gelöscht (`removeDayWidth`) — sonst würden verwaiste Einträge unter dem alten Namen
-  liegen bleiben.
-- **Sichtbarkeit:** Die Ziehgriffe sind Bearbeitungs-UI wie die Lösch-/Hinzufügen-Icons und
-  folgen deren Sichtbarkeits-Toggle (Punkt 16) sowie der Druckansicht (Punkt 15) — im Druck
-  wird die Zeitspalte ohnehin auf eine feste, garantiert ausreichende Breite gezwungen
-  (`!important`, überschreibt eine manuelle Bildschirm-Breite absichtlich).
-- **Fallback "zur Not umbrechen":** Das Zeitlabel selbst wurde von einem `<input type="text">`
-  auf ein `contenteditable`-Span umgestellt (wie die Tagesnamen, Punkt 1a) — Inputs können
-  grundsätzlich nicht umbrechen, ein `<span>` schon. Damit greift eine zweite Absicherung
-  unabhängig vom manuellen Resize: Ist eine Spalte trotzdem zu schmal, bricht das Label
-  normal um (bevorzugt am Halbgeviertstrich "–" zwischen den Uhrzeiten, da Unicode-
-  Zeilenumbruchregeln dort ohnehin eine Umbruchstelle vorsehen; `overflow-wrap: anywhere`
-  als zusätzliches Sicherheitsnetz für den Fall, dass selbst das nicht reicht) statt
-  abgeschnitten zu werden.
+- **Trigger:** `table-layout: fixed` (item 17) does produce a layout without scrolling, but
+  the fixed ~92px time column isn't enough for every grid — long time labels like
+  "16:40–18:10" were getting hard-clipped in the time `<input>` (inputs never wrap their
+  text, regardless of CSS).
+- **Solution:** every column (time and day columns) gets a narrow drag handle on the right
+  edge of its `<th>` (`.col-resize-handle`, `position: absolute` at the column edge).
+  Dragging sets an explicit `width` on the `<th>` via a mouse drag — under `table-layout:
+  fixed`, that determines the width of the whole column (header and data cells). A minimum
+  width (`MIN_COL_WIDTH = 60px` in `app.js`) prevents a column from collapsing to 0. Day
+  columns that haven't been manually resized keep sharing the remaining space automatically
+  and evenly (unchanged behavior from item 17).
+- **Persistence:** the time column's width lives as `plan.timeColWidth` (a number, or `null`
+  for the default), day column widths as `plan.columnWidths[dayName]` (an object, only for
+  explicitly resized columns). Renaming a day column moves its width entry along
+  (`renameDayWidth` in `logic.js`, mirroring `renameDayEntries`); removing one deletes it
+  (`removeDayWidth`) — otherwise orphaned entries would be left behind under the old name.
+- **Visibility:** the drag handles are edit UI like the remove/add icons and follow their
+  visibility toggle (item 16) as well as the print view (item 15) — in print, the time
+  column is forced to a fixed, guaranteed-sufficient width anyway (`!important`,
+  deliberately overriding a manual on-screen width).
+- **"Wrap as a last resort" fallback:** the time label itself was switched from an
+  `<input type="text">` to a `contenteditable` span (like the day names, item 1a) — inputs
+  fundamentally can't wrap, a `<span>` can. That gives a second safeguard independent of
+  manual resizing: if a column is still too narrow, the label wraps normally (preferring a
+  break at the en dash "–" between the times, since Unicode line-breaking rules already treat
+  that as a break opportunity; `overflow-wrap: anywhere` as an additional safety net in case
+  even that isn't enough) instead of being clipped.
 
-### 19. Gruppierte Header-Toolbar
+### 19. Grouped header toolbar
 
-- **Anlass:** Die Aktionsleiste im Header war mit jedem Feature dieser Session linear
-  gewachsen (zuletzt Drucken, Bearbeitungssymbole-Toggle) — sechs Buttons plus ein Toggle
-  standen gleichrangig in einer Reihe, ohne dass sich anschaut, was zusammengehört und was
-  gefährlich ist (siehe UI-Review, das dieser Änderung voranging).
-- **Gruppierung statt flacher Reihe:** Die Buttons sind in drei beschriftete Gruppen
-  aufgeteilt (`.action-group` mit `.action-group-label`): "Daten" (Exportieren, Importieren),
-  "Raster" (Zeiten festlegen, + Zeile hinzufügen), "Ansicht" (Drucken, Bearbeitungssymbole
-  anzeigen). Die Gruppen-Beschriftungen sind übersetzte UI-Strings
-  (`toolbarGroupData`/`toolbarGroupGrid`/`toolbarGroupView`), keine Termin-/Nutzerdaten.
-  Die Trennlinie zwischen Gruppen sitzt als `border-right` auf der Gruppe selbst statt als
-  eigenständiges Trenner-Element — sonst bliebe bei einem Zeilenumbruch (schmaler Bildschirm)
-  eine einzelne Trennlinie ohne zugehörige Gruppe hängen.
-- **"Zurücksetzen" ist bewusst kein `.btn-secondary` mehr.** Als einzige destruktive,
-  nicht umkehrbare Aktion der Leiste (nur durch einen `confirm()`-Dialog abgesichert) bekommt
-  sie eine eigene, gruppenlose Position rechts außen (`margin-left: auto`) und eine neue
-  Umriss-Stilklasse `.btn-danger-outline` (Gefahrenfarbe als Rahmen/Text statt als
-  Vollflächen-Rot) — auffällig genug, um nicht mit einem normalen Sekundär-Button verwechselt
-  zu werden, aber zurückhaltender als ein alarmierender roter Block.
-- **"+ Zeile hinzufügen" ist nicht mehr der einzige Primär-Button** (vorher einzige
-  `.btn`-Instanz mit Akzentfarbe, jetzt `.btn-secondary` wie die anderen Raster-/Daten-
-  Aktionen): Keine dieser Toolbar-Aktionen wird im Alltag sehr häufig gebraucht — der übliche
-  Weg, einen Termin anzulegen, ist der Klick auf eine Zelle, nicht ein Toolbar-Button. Eine
-  optische Hervorhebung gerade dieser einen Aktion war willkürlich.
-- **Bewusst nicht umgesetzt:** ein Overflow-/"Mehr"-Menü für die Aktionen. Bei sechs Aktionen
-  in drei Gruppen lohnt sich das (noch) nicht — das würde nur Entdeckbarkeit kosten. Kommt
-  relevant, sobald deutlich mehr, seltener genutzte Aktionen dazukommen. Ebenso bewusst nicht
-  umgesetzt: eine echte Icon-Toolbar (Buttons durch Icons+Tooltips ersetzen) — das braucht ein
-  konsistentes, eigenes Icon-Set statt der bestehenden Emoji-Icons (`+`/`🗑`/`🖨`) und ist eine
-  eigene, spätere Entscheidung, kein Nebenprodukt dieses Umbaus.
+- **Trigger:** the header's action row had grown linearly with every feature added this
+  session (most recently print, the edit-icons toggle) — six buttons plus a toggle sat at
+  equal visual weight in one row, with nothing showing what belonged together or what was
+  dangerous (see the UI review that preceded this change).
+- **Grouping instead of a flat row:** the buttons are split into three labeled groups
+  (`.action-group` with `.action-group-label`): "Data" (Export, Import), "Grid" (Set time
+  grid, + Add row), "View" (Print, Show edit icons). The group labels are translated UI
+  strings (`toolbarGroupData`/`toolbarGroupGrid`/`toolbarGroupView`), not entry/user data. The
+  divider between groups sits as a `border-right` on the group itself rather than as a
+  standalone divider element — otherwise a line wrap (narrow screen) could strand a single
+  divider line with no group attached to it.
+- **"Reset" is deliberately no longer a `.btn-secondary`.** As the toolbar's one destructive,
+  unrecoverable action (guarded only by a `confirm()` dialog), it gets its own, group-less
+  position on the far right (`margin-left: auto`) and a new outline style class
+  (`.btn-danger-outline`, the danger color as a border/text instead of a solid red fill) —
+  distinct enough not to be mistaken for a normal secondary button, but more restrained than
+  an alarming red block.
+- **"+ Add row" is no longer the toolbar's sole primary button** (previously the only `.btn`
+  instance with the accent color, now `.btn-secondary` like the other grid/data actions):
+  none of these toolbar actions is actually used very often in everyday use — the usual way
+  to add an entry is clicking a cell, not a toolbar button. Visually highlighting this one
+  particular action was arbitrary.
+- **Deliberately not implemented:** an overflow/"more" menu for the actions. With six actions
+  in three groups, that isn't worth it (yet) — it would only cost discoverability. Becomes
+  relevant once meaningfully more, less-frequently-used actions are added. Also deliberately
+  not implemented: a real icon toolbar (replacing buttons with icons+tooltips) — that needs a
+  consistent, dedicated icon set instead of the existing emoji icons (`+`/`🗑`/`🖨`) and is
+  its own, later decision, not a byproduct of this rework.
 
-### 20. Dunkelmodus
+### 20. Dark mode
 
-- **Drei Zustände** wie beim Sprach-/Bearbeitungssymbole-Toggle, kein reiner Ja/Nein-Schalter:
-  `<select id="themeSwitcher">` mit "System" (folgt `prefers-color-scheme`), "Hell", "Dunkel".
-  Persistiert pro Browser in `store.theme` (`getTheme`/`setTheme` in `store.js`, analog zu
-  `getLanguage`), nicht pro Plan — wie Sprache und Bearbeitungssymbole-Sichtbarkeit ist das
-  eine Anzeige-Einstellung, keine Termin-/Plan-Eigenschaft.
-- **Umsetzung über CSS Custom Properties, nicht zwei komplette Stylesheets:** Alle
-  Basis-Tokens (`--bg`, `--surface`, `--border`, `--text`, `--text-muted`, `--accent`,
-  `--danger`, `--warn`, `--shadow`) werden für Dunkel neu gesetzt — einmal unter
-  `@media (prefers-color-scheme: dark)` (nur wenn kein `data-theme="light"` explizit gesetzt
-  ist) und einmal unter `:root[data-theme="dark"]` (erzwingt Dunkel unabhängig vom
-  Betriebssystem). `app.js` setzt/entfernt nur das `data-theme`-Attribut auf `<html>`
-  (`applyTheme()`), keine Klassen-Umschalterei o. Ä.
-- **Abgeleitete Zwischentöne statt doppelter Hell-/Dunkel-Werte:** Farben, die eigentlich nur
-  ein Tarnton eines Basis-Tokens sind (z. B. der helle Hintergrund gefüllter Zellen, die
-  Sekundärknopf-Fläche, der Zeitspalten-Hintergrund), sind einmalig im Basis-`:root` als
-  `color-mix(in srgb, var(--irgendwas) X%, var(--surface))` definiert — sie berechnen sich
-  bei jedem Theme-Wechsel automatisch neu aus den (dann überschriebenen) Basis-Tokens, ohne
-  dass sie im Dark-Block wiederholt werden müssten. Nur wirklich eigenständige, nicht
-  ableitbare Farben (z. B. `--warn`, die Amber-Hinweistextfarbe) haben einen echten,
-  handgewählten zweiten Wert im Dark-Block.
-- **Die Regenbogenfarben der Tagesspalten (`--day-1..7`) und deren Kopf-Textfarbe
-  (`#1c1c26`) ändern sich bewusst nicht mit dem Theme** — die Farbcodierung ist Inhalt
-  (Punkt 5), keine Deko, und der Kopftext sitzt immer auf einer hellen Pastellfläche,
-  unabhängig vom Seiten-Theme.
-- **Druckausgabe bleibt immer hell**, unabhängig vom aktiven Bildschirm-Theme: `@media print`
-  setzt alle Basis-Tokens mit `!important` zurück auf ihre Hell-Werte (nötig, weil eine
-  einfache `:root`-Regel sonst an der höheren Selektor-Spezifität von
-  `:root[data-theme="dark"]` scheitert — eine `@media`-Regel allein erhöht die Spezifität
-  nicht). Damit bekommen auch alle `color-mix()`-Token beim Drucken automatisch wieder ihre
-  Hell-Werte, nicht nur `body { background }`.
-- **Kein Flackern beim Laden:** Da `app.js` als `type="module"` erst nach dem HTML-Parsing
-  läuft, würde eine gespeicherte Dunkel-Wahl sonst kurz hell aufblitzen, bevor `app.js` sie
-  anwendet. Ein kleines, synchrones Inline-`<script>` im `<head>` von `index.html` liest den
-  Store direkt aus `localStorage` und setzt `data-theme` schon vor dem ersten Rendern — dupliziert
-  absichtlich nur den Storage-Key (siehe Kommentar dort, muss mit `STORE_KEY` in `store.js`
-  synchron bleiben) statt das ganze Modul zu importieren.
+- **Three states** like the language/edit-icons toggle, not a plain yes/no switch:
+  `<select id="themeSwitcher">` with "System" (follows `prefers-color-scheme`), "Light",
+  "Dark". Persisted per browser in `store.theme` (`getTheme`/`setTheme` in `store.js`,
+  mirroring `getLanguage`), not per plan — like language and edit-icons visibility, this is a
+  display setting, not an entry/plan property.
+- **Implemented via CSS custom properties, not two complete stylesheets:** all primitive
+  tokens (`--bg`, `--surface`, `--border`, `--text`, `--text-muted`, `--accent`, `--danger`,
+  `--warn`, `--shadow`) are redefined for dark — once under
+  `@media (prefers-color-scheme: dark)` (only when `data-theme="light"` isn't explicitly
+  set), and once under `:root[data-theme="dark"]` (forces dark regardless of the OS). `app.js`
+  only sets/removes the `data-theme` attribute on `<html>` (`applyTheme()`), no class
+  toggling or similar.
+- **Derived shades instead of duplicated light/dark values:** colors that are really just a
+  tint of a primitive token (e.g. the light background of filled cells, the secondary-button
+  surface, the time-column background) are defined once, in the base `:root`, as
+  `color-mix(in srgb, var(--something) X%, var(--surface))` — they automatically recompute on
+  every theme change from the (then-overridden) primitive tokens, without needing to be
+  repeated in the dark block. Only genuinely standalone, non-derivable colors (e.g. `--warn`,
+  the amber hint-text color) have a real, hand-picked second value in the dark block.
+- **The day columns' rainbow colors (`--day-1..7`) and their header text color (`#1c1c26`)
+  deliberately don't change with the theme** — the color-coding is content (item 5), not
+  decoration, and the header text always sits on a light pastel surface, regardless of the
+  page theme.
+- **Printed output always stays light**, regardless of the active on-screen theme:
+  `@media print` resets all primitive tokens back to their light values with `!important`
+  (necessary because a plain `:root` rule there would otherwise be outranked by
+  `:root[data-theme="dark"]`'s higher selector specificity — a `@media` rule alone doesn't add
+  specificity). That way every `color-mix()`-derived token also gets its light value back when
+  printing, not just `body { background }`.
+- **No flash on load:** since `app.js` runs as `type="module"` only after HTML parsing, a
+  saved dark choice would otherwise briefly flash light before `app.js` applies it. A small,
+  synchronous inline `<script>` in `index.html`'s `<head>` reads the store directly from
+  `localStorage` and sets `data-theme` before the first render — deliberately duplicating
+  only the storage key (see the comment there, must stay in sync with `STORE_KEY` in
+  `store.js`) instead of importing the whole module.
 
-### 21. Info-Modal mit Quellcode-Link
+### 21. About modal with a source-code link
 
-- Ein `ⓘ`-Icon-Button (`#aboutBtn`, ganz rechts im Header, neben den beiden Auswahlfeldern)
-  öffnet ein Modal nach demselben Muster wie die Termin-/Zeitraster-Modals (`.modal-overlay`/
-  `.modal`, Escape schließt, Klick auf den Hintergrund schließt).
-- Inhalt: Kurzbeschreibung der App (inkl. Hinweis, dass alle Daten ausschließlich lokal im
-  Browser bleiben — keine Server-Übertragung, siehe Punkt 9) plus ein Link "Auf GitHub
-  ansehen" zum Quell-Repository. Bewusst kein Versions-/Build-Info-Text — es gibt keinen
-  Build-Schritt und keine Versionsnummer, die das sinnvoll anzeigen könnte (Punkt "Bewusste
-  Nicht-Ziele").
-- Gehört zu keiner der drei Toolbar-Gruppen aus Punkt 19 (nicht Daten, nicht Raster, nicht
-  Ansicht) — daher bewusst kein Teil von `.app-actions`, sondern ein eigener Button im
-  `header-top` neben den globalen Auswahlfeldern.
+- An "ⓘ" icon button (`#aboutBtn`, at the far right of the header, next to the two selects)
+  opens a modal following the same pattern as the entry/time-grid modals (`.modal-overlay`/
+  `.modal`, Escape closes it, clicking the backdrop closes it).
+- Content: a short description of the app (including a note that all data stays exclusively
+  local in the browser — no server transfer, see item 9) plus a "View on GitHub" link to the
+  source repository. Deliberately no version/build-info text — there's no build step and no
+  version number that could meaningfully be shown there (see "Deliberate non-goals").
+- Belongs to none of the three toolbar groups from item 19 (not Data, not Grid, not View) —
+  so deliberately not part of `.app-actions`, but its own button in `header-top` next to the
+  global selects.
 
-## Bewusste Nicht-Ziele (damit sie in einem Rewrite nicht versehentlich neu diskutiert werden)
+## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
-- Kein Build-Tooling (Webpack/Vite/Bundler) für die App — bewusst bei reinen, direkt
-  servierbaren ES-Modulen belassen; siehe CONTRIBUTING.md für die Bedingungen, unter denen
-  sich das ändern sollte.
-- Kein CSS-Framework — kleines handgeschriebenes Stylesheet.
-- Kein pixelgenaues Kalender-Layout (freie Positionierung wie Google Calendar) — bewusst
-  zugunsten von Zeilenraster + Sub-Raster-Zeit-Badge (Punkt 5) verworfen, um Datenmodell und
-  Kollisionsbehandlung einfach zu halten.
-- Kein Backend/Sync — nur Single-Browser-`localStorage`; Export/Import-JSON ist der einzige
-  Weg, einen Plan zwischen Browsern/Geräten zu bewegen.
-- Keine Authentifizierung/Accounts.
-- Keine weiteren Sprachen über Deutsch/Englisch hinaus (aktuell) — die `i18n.js`-Struktur
-  wäre dafür erweiterbar, aber es gibt noch keine dritte Zielsprache.
-- Kein eigener Zeit-Picker für `<input type="time">` — Browser-native 12h/24h-Darstellung
-  wird akzeptiert statt nachgebaut (siehe Punkt 12).
-- Keine responsive Anpassung der festen 70px-Zeilenhöhe — würde die Pixel-Berechnung der
-  Sub-Raster-Einrückung verkomplizieren (siehe Punkt 17).
-- Kein automatisches Ausblenden leerer Zeilen in der Druckansicht — Druck zeigt exakt den
-  Bildschirminhalt minus Bedienelemente, keine zusätzliche Content-Filterung (siehe Punkt 15).
-- Keine Versions-/Build-Nummer irgendwo in der UI (z. B. im Info-Modal, Punkt 21) — ohne
-  Build-Schritt gibt es keinen natürlichen Erzeugungspunkt dafür, der nicht manuell gepflegt
-  werden müsste.
+- No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
+  servable ES modules; see CONTRIBUTING.md for the conditions under which that should change.
+- No CSS framework — a small hand-written stylesheet.
+- No pixel-perfect calendar layout (free positioning like Google Calendar) — deliberately
+  dropped in favor of a row grid + sub-raster time badge (item 5), to keep the data model and
+  collision handling simple.
+- No backend/sync — only single-browser `localStorage`; export/import JSON is the only way to
+  move a plan between browsers/devices.
+- No authentication/accounts.
+- No languages beyond German/English (currently) — the `i18n.js` structure would be
+  extensible for that, but there's no third target language yet.
+- No custom time picker for `<input type="time">` — the browser's native 12h/24h display is
+  accepted rather than reimplemented (see item 12).
+- No responsive adjustment of the fixed 70px row height — would complicate the pixel
+  calculation for the sub-raster inset (see item 17).
+- No automatic hiding of empty rows in the print view — print shows exactly the on-screen
+  content minus controls, no extra content filtering (see item 15).
+- No version/build number anywhere in the UI (e.g. in the About modal, item 21) — without a
+  build step there's no natural point to generate one that wouldn't have to be maintained by
+  hand.

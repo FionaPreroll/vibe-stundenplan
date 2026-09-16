@@ -1,49 +1,48 @@
 # Vibe-Stundenplan
 
-Eine Single-Page-App für die persönliche Alltagsplanung: ein Stundenplan-Wochenraster zum
-Eintragen von Terminen, Aufgaben und Blöcken — direkt im Browser, ohne Build-Schritt, ohne
-Backend. Deutsch und Englisch werden vollständig unterstützt.
+A single-page app for everyday personal planning: a weekly schedule grid for entries,
+tasks, and blocks — right in the browser, no build step, no backend. German and English
+are both fully supported.
 
 **Live:** https://fionapreroll.github.io/vibe-stundenplan/
 
-![Stundenplan mit Beispielinhalten](screenshots/app.png)
+![Schedule with example content](screenshots/app.png)
 
 ## Features
 
-- Wochenraster mit frei benennbaren, hinzufügbaren und entfernbaren Tages-Spalten,
-  farbcodiert im Regenbogen-Schema
-- Zeitraster per Vorlage (TU Dresden, RWTH Aachen) oder frei konfigurierbar — Intervall in
-  Minuten (auch Sub-Stunden-Takte), beliebige Start-/Endzeit
-- Termine per Klick oder Drag-Auswahl über mehrere Zeitfenster anlegen, inkl. optionaler
-  Start-/Endzeit unabhängig vom Raster (visuell innerhalb der Zelle eingerückt)
-- Live-Hervorhebung des aktuellen Zeitfensters und Wochentags
-- Mehrere Stundenpläne parallel verwalten und wechseln
-- Export/Import als lesbares JSON — Format spezifiziert in
+- Weekly grid with freely renamable, addable, and removable day columns, color-coded in a
+  rainbow scheme
+- Time grid via preset (TU Dresden, RWTH Aachen) or fully custom — interval in minutes
+  (including sub-hour ticks), any start/end time
+- Add entries by click or drag-select across several time slots, including an optional
+  start/end time independent of the grid (visually inset within the cell)
+- Live highlighting of the current time slot and weekday
+- Manage and switch between several schedules in parallel
+- Export/import as readable JSON — format specified in
   [EXPORT_FORMAT.md](EXPORT_FORMAT.md)
-- Deutsch/Englisch umschaltbar, inkl. automatischer Erkennung der Browsersprache
-- Vollständig tastaturbedienbar (Enter speichert, Escape verwirft)
+- Switchable German/English, including automatic browser-language detection
+- Fully keyboard-operable (Enter saves, Escape discards)
 
-Details, Architektur und bewusste Scope-Entscheidungen: siehe
-[REQUIREMENTS.md](REQUIREMENTS.md). Hinweise für Beiträge/Weiterentwicklung: siehe
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Details, architecture, and deliberate scope decisions: see [REQUIREMENTS.md](REQUIREMENTS.md).
+Notes for contributing/further development: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Termin anlegen
+### Adding an entry
 
-![Termin-Modal](screenshots/entry-modal.png)
+![Entry modal](screenshots/entry-modal.png)
 
-### Zeitraster festlegen
+### Setting the time grid
 
-![Zeitraster-Modal](screenshots/time-modal.png)
+![Time grid modal](screenshots/time-modal.png)
 
-## Lokal starten
+## Running locally
 
-Kein Build nötig — einfach über einen lokalen Server servieren, z. B.:
+No build needed — just serve it from any local server, e.g.:
 
 ```
 python3 -m http.server 8000
 ```
 
-und `http://localhost:8000` öffnen.
+and open `http://localhost:8000`.
 
 ## Tests
 
@@ -51,16 +50,16 @@ und `http://localhost:8000` öffnen.
 npm test
 ```
 
-Läuft mit Node's eingebautem Test-Runner, keine externen Abhängigkeiten nötig.
+Runs on Node's built-in test runner, no external dependencies needed.
 
-## Screenshots aktualisieren
+## Updating screenshots
 
-Die Screenshots oben werden automatisch per GitHub Actions
-(`.github/workflows/screenshots.yml`) bei jedem Push auf `main` neu generiert und
-zurückcommittet. Das ist die einzige Stelle im Projekt, die eine echte devDependency
-(Playwright, nur für dieses Skript) braucht — die App selbst bleibt abhängigkeitsfrei.
+The screenshots above are automatically regenerated and committed back by GitHub Actions
+(`.github/workflows/screenshots.yml`) on every push to `main`. That's the only place in the
+project that needs a real devDependency (Playwright, only for this script) — the app itself
+stays dependency-free.
 
-Manuell:
+Manually:
 
 ```
 npm install

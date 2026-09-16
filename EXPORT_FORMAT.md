@@ -1,136 +1,133 @@
-# Export/Import-JSON-Format
+# Export/Import JSON Format
 
-Spezifikation des Dateiformats, das der "Exportieren"/"Importieren"-Button erzeugt bzw. liest
-(`io.js`: `serializePlan`/`parsePlanImport`). Das Format ist bewusst **ein flaches, von Hand
-lesbares und editierbares JSON** — kein Binärformat, keine Kompression, keine versteckten
-Felder. Wer möchte, kann eine Export-Datei in einem Texteditor öffnen, Termine per Hand
-ergänzen und die Datei wieder importieren.
+Specification of the file format the "Export"/"Import" button produces and reads
+(`io.js`: `serializePlan`/`parsePlanImport`). The format is deliberately **a flat,
+hand-readable and hand-editable JSON** — no binary format, no compression, no hidden fields.
+Anyone who wants to can open an export file in a text editor, add entries by hand, and import
+the file again.
 
-Aktuelle Formatversion: **1** (`EXPORT_FORMAT_VERSION` in `io.js`).
+Current format version: **1** (`EXPORT_FORMAT_VERSION` in `io.js`).
 
-## Kompatibilitätsgarantie
+## Compatibility guarantee
 
-- `app` und `version` werden beim Export geschrieben, aber **beim Import nicht geprüft** —
-  `parsePlanImport` verlangt nur ein vorhandenes `plan`-Objekt (siehe unten). Eine Datei ganz
-  ohne `app`/`version`-Feld wird also genauso importiert wie eine mit falschem Wert. Das ist
-  Absicht: Das Format soll auch von Hand zusammengestellte oder aus anderen Werkzeugen
-  exportierte JSON-Dateien akzeptieren, solange die `plan`-Struktur passt.
-- Import ist **defensiv, nie abstürzend**: Fehlt ein Feld oder hat es den falschen Typ, wird
-  ein sicherer Default eingesetzt (siehe Tabelle unten) statt eines Fehlers. Nur zwei Fälle
-  brechen den Import wirklich ab (mit einer übersetzbaren Fehlermeldung):
-  - Die Datei ist kein gültiges JSON → Fehlercode `errorInvalidJson`.
-  - Das JSON hat kein `plan`-Objekt (fehlt, ist `null`, oder ist kein Objekt) → Fehlercode
+- `app` and `version` are written on export but **not checked on import** — `parsePlanImport`
+  only requires a `plan` object to be present (see below). A file with no `app`/`version`
+  field at all imports just the same as one with a wrong value. That's intentional: the
+  format should also accept hand-assembled JSON files, or ones exported by other tools, as
+  long as the `plan` structure fits.
+- Import is **defensive, never crashes**: if a field is missing or has the wrong type, a safe
+  default is substituted (see the table below) instead of an error. Only two cases really
+  abort the import (with a translatable error message):
+  - The file isn't valid JSON → error code `errorInvalidJson`.
+  - The JSON has no `plan` object (missing, `null`, or not an object) → error code
     `errorMissingPlanField`.
-- Import legt immer einen **neuen** Plan an und wechselt danach dorthin — ein bestehender Plan
-  wird nie überschrieben.
-- Rein internes State, das nicht Teil des Plan-*Inhalts* ist, wird bewusst **nicht**
-  exportiert: die interne Plan-`id` (bekäme beim Import ohnehin eine neue), sowie
-  `columnWidths`/`timeColWidth` (manuell gesetzte Spaltenbreiten, siehe REQUIREMENTS.md
-  Abschnitt 18) — eine importierte Datei rendert also mit der Standard-Spaltenbreite, auch
-  wenn die Ursprungsspalte beim Export breiter eingestellt war.
+- Import always creates a **new** plan and switches to it afterwards — an existing plan is
+  never overwritten.
+- Purely internal state that isn't part of the plan's *content* is deliberately **not**
+  exported: the internal plan `id` (would get a new one on import anyway), and
+  `columnWidths`/`timeColWidth` (manually set column widths, see REQUIREMENTS.md section 18)
+  — an imported file therefore renders at the default column width, even if the original
+  column was set wider at export time.
 
-## Top-Level-Struktur
+## Top-level structure
 
 ```json
 {
   "app": "vibe-stundenplan",
   "version": 1,
   "plan": {
-    "name": "Wintersemester",
-    "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"],
+    "name": "Winter Semester",
+    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     "rowCount": 8,
     "times": ["08:00–09:30", "09:45–11:15", "..."],
     "entries": {
-      "0_Montag": { "title": "Analysis", "description": "Vorlesung, HS 1", "link": "" }
+      "0_Monday": { "title": "Analysis", "description": "Lecture, Room 1", "link": "" }
     }
   }
 }
 ```
 
-| Feld            | Typ                        | Beim Import geprüft? | Fallback bei fehlendem/ungültigem Wert                          |
-| --------------- | --------------------------- | --------------------- | ----------------------------------------------------------------- |
-| `app`           | `string`                    | nein                   | (wird ignoriert)                                                   |
-| `version`       | `number`                    | nein                   | (wird ignoriert)                                                   |
-| `plan`          | `object`                    | **ja, Pflichtfeld**    | fehlt/kein Objekt → Import bricht ab (`errorMissingPlanField`)     |
-| `plan.name`     | `string`                    | ja                     | leer/fehlt/nur Whitespace → "Importierter Plan"/"Imported Schedule" (abhängig von der aktuellen UI-Sprache) |
-| `plan.days`     | `string[]`, nicht-leer, keine Leerstrings | ja | fehlt/leer/enthält Leerstring → Standard-Wochentage der aktuellen UI-Sprache |
-| `plan.rowCount` | positive ganze Zahl         | ja                     | fehlt/≤ 0/keine ganze Zahl → `10`                                  |
-| `plan.times`    | `string[]`                  | ja (pro Element)       | kein Array → `[]`; nicht-String-Elemente einzeln → `""`            |
-| `plan.entries`  | `object` (kein Array)       | ja                     | kein Objekt/ist Array → `{}`                                       |
+| Field           | Type                         | Checked on import? | Fallback for a missing/invalid value                              |
+| --------------- | ---------------------------- | ------------------- | ------------------------------------------------------------------- |
+| `app`           | `string`                     | no                   | (ignored)                                                            |
+| `version`       | `number`                     | no                   | (ignored)                                                            |
+| `plan`          | `object`                     | **yes, required**    | missing/not an object → import aborts (`errorMissingPlanField`)     |
+| `plan.name`     | `string`                     | yes                  | empty/missing/whitespace-only → "Importierter Plan"/"Imported Schedule" (depending on the current UI language) |
+| `plan.days`     | `string[]`, non-empty, no blank strings | yes | missing/empty/contains a blank string → the current UI language's default weekday names |
+| `plan.rowCount` | positive integer             | yes                  | missing/≤ 0/not an integer → `10`                                    |
+| `plan.times`    | `string[]`                   | yes (per element)    | not an array → `[]`; non-string elements individually → `""`         |
+| `plan.entries`  | `object` (not an array)      | yes                  | not an object/is an array → `{}`                                     |
 
-`plan.name` wird beim Import getrimmt. Tagesnamen (`plan.days`) werden **unverändert**
-übernommen, egal in welcher Sprache oder wie sie umbenannt wurden — sie werden nicht
-automatisch übersetzt (siehe REQUIREMENTS.md, Abschnitt 12, für die Übersetzungslogik beim
-Sprachwechsel, die nur bereits im Store vorhandene Pläne betrifft, nicht den Import).
-Eindeutigkeit der Tagesnamen (keine zwei Spalten mit demselben Namen) wird beim Import
-**nicht** erzwungen — das ist eine In-App-Regel, keine Format-Regel.
+`plan.name` is trimmed on import. Day names (`plan.days`) are taken over **unchanged**,
+whatever language they're in or however they were renamed — they are not automatically
+translated (see REQUIREMENTS.md, section 12, for the translation logic on a language switch,
+which only affects plans already in the store, not import). Day-name uniqueness (no two
+columns with the same name) is **not** enforced on import — that's an in-app rule, not a
+format rule.
 
-## `plan.entries`: Schlüssel und Wertformat
+## `plan.entries`: key and value format
 
-`entries` ist eine flache Map. Jeder Schlüssel identifiziert eine belegte Zelle:
+`entries` is a flat map. Each key identifies an occupied cell:
 
 ```
 "<row>_<day>"
 ```
 
-- `row`: 0-basierter Zeilenindex (muss `< rowCount` sein; entspricht dem Index in `times`).
-- `day`: exakter String aus `plan.days` (Groß-/Kleinschreibung und Sonderzeichen müssen
-  übereinstimmen).
-- Beispiel: `"0_Montag"` = Zeile 0, Spalte "Montag".
+- `row`: 0-based row index (must be `< rowCount`; matches the index into `times`).
+- `day`: the exact string from `plan.days` (case and special characters must match).
+- Example: `"0_Monday"` = row 0, column "Monday".
 
-**Wichtig — nur die Ankerzeile eines Termins hat einen Eintrag:** Belegt ein Termin mehrere
-Zeilen (`span` > 1, siehe unten), gibt es dafür genau **einen** Eintrag bei der *ersten*
-Zeile, die er belegt. Die folgenden `span - 1` Zeilen dürfen in `entries` **keinen eigenen
-Schlüssel** für dieselbe Spalte haben — die App geht davon aus, dass sich Termine nie
-überlappen (`findAnchorRow` in `logic.js`), und ein doppelt belegter Bereich führt zu
-undefiniertem Rendering-Verhalten. Wer eine Export-Datei von Hand um einen mehrzeiligen
-Termin ergänzt, muss also nur einen Eintrag mit `span` schreiben, nicht `span`-viele.
+**Important — only the anchor row of an entry has an entry:** if an entry occupies several
+rows (`span` > 1, see below), there is exactly **one** entry for it, at the *first* row it
+occupies. The following `span - 1` rows must **not** have their own key for the same column
+in `entries` — the app assumes entries never overlap (`findAnchorRow` in `logic.js`), and a
+doubly-occupied range leads to undefined rendering behavior. So hand-editing an export file to
+add a multi-row entry only needs one entry with a `span`, not `span`-many.
 
-### Termin-Objekt (Wert eines `entries`-Eintrags)
+### Entry object (the value of an `entries` entry)
 
-`io.js` validiert die Feldinhalte eines einzelnen Termins **nicht** — der Wert wird roh
-durchgereicht, damit `io.js` nicht jedes App-Feld einzeln kennen muss. Das faktische Format,
-das die App selbst schreibt und beim Rendern erwartet (`computeEntryUpdate`/`getEntrySpan` in
-`logic.js`):
+`io.js` does **not** validate an individual entry's field contents — the value is passed
+through raw, so `io.js` doesn't need to know every app field individually. The de facto
+format the app itself writes and expects when rendering (`computeEntryUpdate`/`getEntrySpan`
+in `logic.js`):
 
-| Feld          | Typ      | Pflicht? | Bedeutung                                                                                     |
-| ------------- | -------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `title`       | `string` | de facto ja | Termin-Titel. Ist er leer/fehlt, rendert die Zelle wie eine unbelegte Zelle (Platzhalter "+"), obwohl der `entries`-Schlüssel existiert. |
-| `description` | `string` | nein     | Freitext, wird nur gerendert wenn nicht-leer.                                                    |
-| `link`        | `string` | nein     | URL, wird als Link gerendert wenn nicht-leer (kein Format-/Schema-Check).                        |
-| `startTime`   | `string` | nein     | `"HH:MM"`, unabhängig vom Zeilen-Zeitlabel — siehe REQUIREMENTS.md Abschnitt 5 (Sub-Raster-Zeiten). Nur gesetzt, wenn im Termin-Modal ausgefüllt. |
-| `endTime`     | `string` | nein     | wie `startTime`.                                                                                  |
-| `span`        | Ganzzahl ≥ 1 | nein | Anzahl der ab der Ankerzeile belegten Zeilen. **Wird bei `span === 1` weggelassen** (App schreibt das Feld nur bei mehrzeiligen Terminen); fehlt es, gilt `1` (`getEntrySpan`). |
+| Field         | Type         | Required? | Meaning                                                                                          |
+| ------------- | ------------ | --------- | -------------------------------------------------------------------------------------------------- |
+| `title`       | `string`     | de facto yes | Entry title. If empty/missing, the cell renders like an unoccupied cell (a "+" placeholder), even though the `entries` key exists. |
+| `description` | `string`     | no        | Free text, only rendered if non-empty.                                                              |
+| `link`        | `string`     | no        | URL, rendered as a link if non-empty (no format/scheme check).                                      |
+| `startTime`   | `string`     | no        | `"HH:MM"`, independent of the row's time label — see REQUIREMENTS.md section 5 (sub-raster times). Only set if filled in in the entry modal. |
+| `endTime`     | `string`     | no        | same as `startTime`.                                                                                 |
+| `span`        | integer ≥ 1  | no        | Number of rows occupied starting at the anchor row. **Omitted when `span === 1`** (the app only writes this field for multi-row entries); if absent, `1` applies (`getEntrySpan`). |
 
-`span` darf `rowCount` an der jeweiligen Position nicht überschreiten (`row + span - 1 <
-rowCount`), sonst rendert die Zelle über das sichtbare Raster hinaus.
+`span` must not exceed `rowCount` at that position (`row + span - 1 < rowCount`), or the cell
+renders past the visible grid.
 
-## `plan.times`: Zeilen-Zeitlabels
+## `plan.times`: row time labels
 
-Freitext pro Zeile, üblicherweise `"HH:MM–HH:MM"` (Halbgeviertstrich `–`, U+2013; ein
-gewöhnlicher Bindestrich `-` wird beim Parsen ebenfalls akzeptiert). Ein Label muss nicht
-parsebar sein — nicht-parsebare Labels werden als reiner Anzeigetext behandelt, verlieren
-dabei nur die abgeleiteten Features, die ein `HH:MM–HH:MM`-Format brauchen (Jetzt-
-Hervorhebung, Sub-Raster-Einrückung eines Termins in dieser Zeile). Die Anzahl der Elemente in
-`times` muss nicht `rowCount` entsprechen; fehlende Zeilen gelten als leeres Label (`""`).
+Free text per row, usually `"HH:MM–HH:MM"` (en dash `–`, U+2013; a plain hyphen `-` is also
+accepted when parsing). A label doesn't have to be parseable — unparseable labels are treated
+as plain display text, only losing the derived features that need an `HH:MM–HH:MM` format
+(the now-highlight, sub-raster inset of an entry in that row). The number of elements in
+`times` doesn't have to match `rowCount`; missing rows count as an empty label (`""`).
 
-## Vollständiges Beispiel
+## Full example
 
 ```json
 {
   "app": "vibe-stundenplan",
   "version": 1,
   "plan": {
-    "name": "Wintersemester",
-    "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"],
+    "name": "Winter Semester",
+    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     "rowCount": 3,
     "times": ["08:00–09:30", "09:45–11:15", "11:30–13:00"],
     "entries": {
-      "0_Montag": { "title": "Analysis", "description": "Vorlesung, HS 1", "link": "" },
-      "1_Dienstag": {
-        "title": "Praktikum",
-        "description": "Treffen im Labor",
-        "link": "https://example.org/labor",
+      "0_Monday": { "title": "Analysis", "description": "Lecture, Room 1", "link": "" },
+      "1_Tuesday": {
+        "title": "Practical",
+        "description": "Lab meeting",
+        "link": "https://example.org/lab",
         "startTime": "10:00",
         "endTime": "12:30",
         "span": 2
@@ -140,15 +137,15 @@ Hervorhebung, Sub-Raster-Einrückung eines Termins in dieser Zeile). Die Anzahl 
 }
 ```
 
-Der zweite Termin belegt Zeile 1 und 2 der Spalte "Dienstag" (`span: 2`), zeigt aber optisch
-nur den Bereich 10:00–12:30 innerhalb dieser beiden Zeilen an (Sub-Raster-Einrückung).
+The second entry occupies rows 1 and 2 of the "Tuesday" column (`span: 2`), but visually only
+shows the 10:00–12:30 range within those two rows (sub-raster inset).
 
-## Maschinenlesbares Schema
+## Machine-readable schema
 
-Ein [JSON Schema](https://json-schema.org/) (Draft 2020-12) für Werkzeuge, die die
-Top-Level-Struktur und die bekannten Termin-Felder validieren wollen — deckt bewusst nicht
-`entries`-Schlüsselformat (`<row>_<day>`) oder die "nur Ankerzeile"-Regel ab, da das
-JSON-Schema-Vokabular dafür nicht ausreicht (siehe Prosa-Regeln oben):
+A [JSON Schema](https://json-schema.org/) (Draft 2020-12) for tools that want to validate the
+top-level structure and the known entry fields — deliberately doesn't cover the `entries` key
+format (`<row>_<day>`) or the "anchor row only" rule, since JSON Schema's vocabulary isn't
+enough for that (see the prose rules above):
 
 ```json
 {
@@ -193,15 +190,15 @@ JSON-Schema-Vokabular dafür nicht ausreicht (siehe Prosa-Regeln oben):
 }
 ```
 
-Hinweis: Dieses Schema ist strenger als der tatsächliche Import-Code (der z. B. auch ohne
-`title` oder mit falschem `rowCount`-Typ nicht abbricht, sondern auf Defaults zurückfällt —
-siehe Tabelle oben). Es beschreibt das Format, das die App selbst **schreibt**, nicht die
-volle Fehlertoleranz beim **Lesen**.
+Note: this schema is stricter than the actual import code (which, e.g., doesn't abort even
+without a `title` or with a wrong `rowCount` type, but falls back to defaults instead — see
+the table above). It describes the format the app itself **writes**, not the full error
+tolerance on **reading**.
 
-## Quellcode-Referenz
+## Source code reference
 
 - Export: `serializePlan` in `io.js`.
-- Import/Validierung: `parsePlanImport` in `io.js`.
-- Termin-Feldsemantik: `computeEntryUpdate`, `getEntrySpan`, `cellKey`/`parseCellKey` in
+- Import/validation: `parsePlanImport` in `io.js`.
+- Entry field semantics: `computeEntryUpdate`, `getEntrySpan`, `cellKey`/`parseCellKey` in
   `logic.js`.
-- Tests, die dieses Format inklusive aller Fallback-Fälle absichern: `io.test.js`.
+- Tests covering this format, including all fallback cases: `io.test.js`.

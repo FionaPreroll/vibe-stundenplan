@@ -1,147 +1,145 @@
 # Contributing / Architecture Notes
 
-Kurzer Leitfaden für Weiterentwicklung — ergänzt [REQUIREMENTS.md](REQUIREMENTS.md) (was die
-App tut) um das *wie* (wo Code hingehört, was getestet wird, was bewusste Entscheidungen statt
-Zufall sind).
+Short guide for further development — complements [REQUIREMENTS.md](REQUIREMENTS.md) (what the
+app does) with the *how* (where code belongs, what gets tested, what's a deliberate decision
+rather than an accident).
 
-## Modul-Karte
+## Module map
 
-| Datei | Verantwortung | Testbar? |
+| File | Responsibility | Testable? |
 |---|---|---|
-| `logic.js` | Reine Stundenplan-Logik: Zeitraster, mehrzeilige Termine, Zeilen/Spalten-Operationen. Kein DOM, kein `localStorage`, kein `window`. | Ja — `logic.test.js` |
-| `io.js` | Export/Import-Serialisierung eines Plans (JSON, spezifiziert in [EXPORT_FORMAT.md](EXPORT_FORMAT.md)). Reine Funktionen, nimmt Sprache als Parameter statt sie selbst zu bestimmen. | Ja — `io.test.js` |
-| `store.js` | Persistenz mehrerer Pläne + Sprachwahl. `localStorage`-Zugriff ist über einen `storage`-Parameter injizierbar (Tests nutzen ein In-Memory-Fake). | Ja — `store.test.js` |
-| `i18n.js` | String-Wörterbuch (DE/EN) + kleine reine Helper (`translate`, `detectDefaultLanguage`). Kein Framework. | Ja — `i18n.test.js` |
-| `app.js` | DOM-Controller: Rendering, Event-Wiring, verbindet die obigen Module mit der Seite. Einziges Modul, das `document`/`window` anfasst. | Nein, siehe unten |
+| `logic.js` | Pure schedule logic: time grid, multi-row entries, row/column operations. No DOM, no `localStorage`, no `window`. | Yes — `logic.test.js` |
+| `io.js` | Export/import serialization of a plan (JSON, specified in [EXPORT_FORMAT.md](EXPORT_FORMAT.md)). Pure functions, takes language as a parameter instead of determining it itself. | Yes — `io.test.js` |
+| `store.js` | Persistence of multiple plans + language choice. `localStorage` access is injectable via a `storage` parameter (tests use an in-memory fake). | Yes — `store.test.js` |
+| `i18n.js` | String dictionary (DE/EN) + a couple of small pure helpers (`translate`, `detectDefaultLanguage`). No framework. | Yes — `i18n.test.js` |
+| `app.js` | DOM controller: rendering, event wiring, connects the modules above to the page. The only module that touches `document`/`window`. | No, see below |
 
-**Faustregel beim Hinzufügen von Code:** Wenn eine Funktion ohne Browser-Globals auskommt
-(kein `document`, `window`, `localStorage`, `alert`, `confirm`), gehört sie in `logic.js`,
-`io.js`, `store.js` oder `i18n.js` — nicht in `app.js`. `app.js` sollte reine
-Verdrahtung bleiben: Werte aus dem DOM lesen, eine reine Funktion aufrufen, Ergebnis ins DOM
-schreiben.
+**Rule of thumb when adding code:** if a function doesn't need any browser globals (no
+`document`, `window`, `localStorage`, `alert`, `confirm`), it belongs in `logic.js`, `io.js`,
+`store.js`, or `i18n.js` — not in `app.js`. `app.js` should stay thin wiring: read values from
+the DOM, call a pure function, write the result back to the DOM.
 
-## Test-Philosophie
+## Test philosophy
 
-- **Getestet:** alles in `logic.js` / `io.js` / `store.js` / `i18n.js` — mit Node's
-  eingebautem Test-Runner (`npm test`, kein externes Test-Framework). Läuft in CI bei jedem
-  Push/PR.
-- **Nicht getestet (automatisiert):** `app.js`. Ein DOM-Controller mit Klick-Handlern,
-  Drag-Logik und Modal-State ließe sich nur mit erheblichem Aufwand (jsdom oder ein
-  Headless-Browser als Testabhängigkeit) sinnvoll unit-testen, für einen Nutzen, der bei
-  diesem Projektumfang nicht im Verhältnis steht. Stattdessen: **vor jedem Commit, der
-  `app.js`/`index.html` ändert, manuell mit Playwright durchklicken** (lokaler Server +
-  Playwright, wie in der Session-Historie dieses Projekts durchgängig gemacht — Screenshot
-  und/oder gezielte `page.$eval`-Checks der betroffenen Interaktion). Das ist bewusst
-  Entwickler-Disziplin statt CI-Gate; wenn `app.js` einmal groß/riskant genug wird, dass sich
-  das nicht mehr trägt, ist das ein Signal, dass Teile daraus in testbare Module wandern
-  sollten (siehe nächster Abschnitt), nicht dass eine Browser-Testsuite eingeführt werden
-  muss.
+- **Tested:** everything in `logic.js` / `io.js` / `store.js` / `i18n.js` — with Node's
+  built-in test runner (`npm test`, no external test framework). Runs in CI on every
+  push/PR.
+- **Not tested (automated):** `app.js`. A DOM controller with click handlers, drag logic, and
+  modal state would only be meaningfully unit-testable with considerable effort (jsdom or a
+  headless browser as a test dependency), for a payoff that isn't proportionate at this
+  project's size. Instead: **manually click through with Playwright before every commit that
+  changes `app.js`/`index.html`** (local server + Playwright, as done consistently throughout
+  this project's session history — a screenshot and/or targeted `page.$eval` checks of the
+  affected interaction). That's a deliberate choice of developer discipline over a CI gate; if
+  `app.js` ever gets large/risky enough that this stops holding up, that's a signal that parts
+  of it should move into testable modules (see the next section), not that a browser test suite
+  needs to be introduced.
 
-## Modularität: vanilla JS ist kein Dogma
+## Modularity: vanilla JS isn't dogma
 
-Die App ist bewusst ohne Build-Schritt und ohne Framework gebaut — nicht aus Prinzip, sondern
-weil der Umfang das bisher nicht rechtfertigt: sieben Module, überschaubare Zustandsform (ein
-Store-Objekt), keine komplexen Abhängigkeiten zwischen UI-Komponenten. Ein Framework
-(React/Vue/Svelte) oder ein Bundler würde hier mehr Konzept- und Tooling-Overhead einführen,
-als er an Klarheit zurückgibt.
+The app is deliberately built without a build step and without a framework — not on
+principle, but because the scope hasn't justified one so far: seven modules, a manageable
+shape of state (one store object), no complex dependencies between UI components. A framework
+(React/Vue/Svelte) or a bundler would introduce more conceptual and tooling overhead here than
+it would return in clarity.
 
-**Das ist aber keine Denkverbot, sondern eine Abwägung, die sich mit dem Projekt ändern
-kann.** Konkrete Signale, die eine Änderung rechtfertigen würden:
+**That's not a ban on ever reconsidering, though — it's a trade-off that can shift as the
+project grows.** Concrete signals that would justify a change:
 
-- `app.js` wächst über die aktuelle Größe (Stand: ~700 Zeilen) deutlich hinaus und die
-  Verantwortlichkeiten lassen sich nicht mehr an einem Blick erfassen.
-- Zustandsänderungen brauchen mehrfach verschachteltes manuelles DOM-Diffing (aktuell: fast
-  alles rendert einfach per `innerHTML = ""` + Neuaufbau — funktioniert, weil die Tabelle
-  klein bleibt; würde bei z. B. hunderten Zeilen ineffizient).
-- Zwei oder mehr Komponenten müssten Zustand synchron halten, ohne dass ein simples
-  `render()`-nach-jeder-Änderung-Muster mehr ausreicht.
+- `app.js` grows significantly beyond its current size (as of writing: ~700 lines) and its
+  responsibilities can no longer be grasped at a glance.
+- State changes need multiple levels of manual DOM diffing (currently: almost everything just
+  renders via `innerHTML = ""` + rebuild — works because the table stays small; would get
+  inefficient at, say, hundreds of rows).
+- Two or more components would need to keep state in sync in a way a simple
+  render-after-every-change pattern can no longer cover.
 
-**Wenn `app.js` aufgeteilt wird, bevorzugt in diese Richtung** (nächster sinnvoller Schritt,
-noch ohne Framework):
+**If `app.js` does get split up, prefer this direction** (the next sensible step, still
+without a framework):
 
-- `render.js` — Tabellen-/Modal-Rendering (DOM-Erzeugung), nimmt Plan-Daten + Callbacks
-  entgegen, kennt keine Event-Wiring-Details.
-- `selection.js` — Drag-Auswahl-Zustandsmaschine (`dragState`, `highlightSelection`, …).
-- `columns.js` — Tagesspalten-Verwaltung (hinzufügen/entfernen/umbenennen), analog zur
-  bestehenden Trennung von `logic.js`-Funktionen.
-- `app.js` bleibt der dünne Rest: Event-Listener registrieren, die obigen Module verdrahten.
+- `render.js` — table/modal rendering (DOM creation), takes plan data + callbacks, doesn't
+  know about event-wiring details.
+- `selection.js` — drag-selection state machine (`dragState`, `highlightSelection`, …).
+- `columns.js` — day-column management (add/remove/rename), mirroring the existing separation
+  of `logic.js` functions.
+- `app.js` stays the thin remainder: registering event listeners, wiring the modules above
+  together.
 
-**Falls doch ein Framework/Bundler nötig wird:** kein Ausschlusskriterium, aber dann bitte
-bewusst und klein — z. B. Preact statt React (deutlich kleiner), esbuild/Vite nur falls
-TypeScript oder echtes Tree-Shaking gebraucht wird, nicht "weil man das halt so macht". Jede
-neue Laufzeit-Abhängigkeit sollte einen Satz Begründung in einem Commit oder hier im Dokument
-bekommen.
+**If a framework/bundler does become necessary:** not a disqualifier, but deliberate and
+small then — e.g. Preact instead of React (noticeably smaller), esbuild/Vite only if
+TypeScript or real tree-shaking is actually needed, not "because that's just what you do".
+Every new runtime dependency should get a sentence of justification in a commit or here in
+this document.
 
-## Die eine bestehende Ausnahme: Playwright
+## The one existing exception: Playwright
 
-`scripts/screenshots.js` (für die README-Screenshots, automatisiert über
-`.github/workflows/screenshots.yml`) braucht Playwright als **devDependency**. Das ist die
-einzige Laufzeit-Abhängigkeit im ganzen Projekt, und bewusst so gehalten:
+`scripts/screenshots.js` (for the README screenshots, automated via
+`.github/workflows/screenshots.yml`) needs Playwright as a **devDependency**. That's the only
+runtime dependency in the whole project, and deliberately kept that way:
 
-- Sie betrifft nur Tooling/Doku, nie den ausgelieferten App-Code (`index.html`/`*.js` bleiben
-  komplett abhängigkeitsfrei).
-- `npm test` (die eigentliche CI-Gate) braucht sie nicht und installiert sie nicht.
+- It only affects tooling/docs, never the shipped app code (`index.html`/`*.js` stay
+  completely dependency-free).
+- `npm test` (the actual CI gate) doesn't need it and doesn't install it.
 
-Neue devDependencies für Tooling sind grundsätzlich okay, wenn sie denselben Maßstab
-einhalten: nie im ausgelieferten App-Code, nie in `npm test` nötig.
+New tooling devDependencies are fine in principle, as long as they hold to the same bar:
+never in the shipped app code, never needed by `npm test`.
 
-## Mehrsprachigkeit (i18n)
+## Internationalization (i18n)
 
-- Jeder neue, für Nutzer sichtbare String (Button, Label, Platzhalter, Confirm-/Alert-Text,
-  Fehlermeldung) bekommt einen Key in `i18n.js`, **in beiden Sprachen** (`de` und `en`) — kein
-  String darf nur in einer Sprache existieren.
-- Statischer Text in `index.html`: `data-i18n="key"` (setzt `textContent`),
+- Every new user-visible string (button, label, placeholder, confirm/alert text, error
+  message) gets a key in `i18n.js`, **in both languages** (`de` and `en`) — no string may
+  exist in only one language.
+- Static text in `index.html`: `data-i18n="key"` (sets `textContent`),
   `data-i18n-placeholder="key"`, `data-i18n-title="key"`, `data-i18n-aria-label="key"`.
-  `app.js`s `applyStaticTranslations()` wendet das bei jedem Sprachwechsel/Render an.
-- Dynamischer Text in `app.js`: über den lokalen `t(key, params)`-Helper (bindet
-  `translate()` an die aktuell gewählte Sprache), `{param}`-Platzhalter in den
-  Wörterbuch-Strings für Interpolation (z. B. `t("confirmDeletePlan", { name: p.name })`).
-- Fehler aus `logic.js`/`io.js`/`store.js`, die dem Nutzer angezeigt werden, werfen einen
-  Error mit `.code` (über `codedError()` in `logic.js`) statt einem fertigen Satz — die
-  Übersetzung passiert erst in `app.js` beim Anzeigen (`alert(err.code ? t(err.code) :
-  err.message)`). So bleiben die Logik-Module sprachneutral und testbar, ohne dass Tests
-  deutsche oder englische Fehlertexte pattern-matchen müssen.
-- Tagesnamen-Defaults (`DAYS_BY_LANGUAGE`) und die Wochentag-Zuordnung für die
-  Jetzt-Hervorhebung (`WEEKDAYS_BY_LANGUAGE`) sind sprachabhängig — sie bestimmen sowohl die
-  Default-Tagesnamen neuer Pläne/Spalten als auch, welche bestehenden Spalten ein
-  Sprachwechsel umbenennt: Eine Spalte, die noch exakt ihrem alten Standard-Wochentagsnamen an
-  ihrer Position entspricht, wird auf den neuen Standardnamen an derselben Position
-  aktualisiert (`translateDefaultDayNames` in `logic.js`); eine manuell umbenannte Spalte ist
-  ab dem Zeitpunkt freier Text und bleibt unangetastet. Details und die
-  Kollisions-Absicherung: REQUIREMENTS.md, Abschnitt 12.
+  `app.js`'s `applyStaticTranslations()` applies these on every language switch/render.
+- Dynamic text in `app.js`: via the local `t(key, params)` helper (binds `translate()` to the
+  currently selected language), `{param}` placeholders in the dictionary strings for
+  interpolation (e.g. `t("confirmDeletePlan", { name: p.name })`).
+- Errors from `logic.js`/`io.js`/`store.js` that get shown to the user throw an Error with a
+  `.code` (via `codedError()` in `logic.js`) instead of a finished sentence — translation only
+  happens in `app.js` when displaying it (`alert(err.code ? t(err.code) : err.message)`). That
+  keeps the logic modules language-neutral and testable, without tests needing to
+  pattern-match German or English error text.
+- Day-name defaults (`DAYS_BY_LANGUAGE`) and the weekday mapping for the now-highlight
+  (`WEEKDAYS_BY_LANGUAGE`) are language-dependent — they determine both the default day names
+  of new plans/columns and which existing columns a language switch renames: a column that
+  still matches its old default weekday name exactly at its position gets updated to the new
+  default name at the same position (`translateDefaultDayNames` in `logic.js`); a manually
+  renamed column is free text from that point on and stays untouched. Details and the
+  collision guard: REQUIREMENTS.md, section 12.
 
-## Farben & Dark Mode
+## Colors & dark mode
 
-- **Nie einen Hex-/rgb-Farbwert direkt in eine Komponentenregel schreiben.** Jede Farbe kommt
-  aus einem Custom-Property-Token in `:root` (`style.css`, oben) — entweder ein Basis-Token
-  (`--bg`, `--surface`, `--text`, `--accent`, `--danger`, `--warn`, ...) oder ein davon
-  abgeleitetes `color-mix(in srgb, var(--x) N%, var(--y))`-Token. Ein Dark-Mode-Override
-  betrifft nur die Basis-Tokens (im `@media (prefers-color-scheme: dark)`-Block und unter
-  `:root[data-theme="dark"]`); jede Komponente, die stattdessen ihre eigene Hex-Farbe
-  schreibt, bricht lautlos im Dunkelmodus (bleibt hell, oft unlesbar).
-- Braucht eine neue Komponente einen neuen Farbton, der sich als Mix aus bestehenden Tokens
-  ausdrücken lässt (z. B. "leichter Akzent-Schimmer über der Fläche"), ein neues
-  `color-mix()`-Token in `:root` ergänzen statt Hell-/Dunkel-Werte doppelt zu pflegen — das
-  Token folgt dann automatisch jedem Theme-Wechsel. Nur wenn sich die Farbe nicht sinnvoll
-  ableiten lässt (eigenständige Signalfarbe, siehe `--now-accent`/`--warn`), braucht es einen
-  echten zweiten, handgewählten Wert im Dark-Block.
-- Zwei Ausnahmen sind absichtlich **nicht** tokenisiert: die Regenbogenfarben der Tagesspalten
-  (`--day-1..7`) und deren Kopf-Textfarbe (`#1c1c26`) — die Farbcodierung ist Inhalt, nicht
-  Deko, und bleibt deshalb themenunabhängig konstant (siehe REQUIREMENTS.md, Abschnitt 20).
-- `@media print` setzt alle Basis-Tokens mit `!important` auf ihre Hell-Werte zurück, damit
-  Ausdrucke nie das aktive Dunkel-Theme mit ausdrucken. Ein neues Basis-Token dort vergessen →
-  Druck-Ausgabe kann im Dunkelmodus falsch aussehen, also beim Hinzufügen eines Basis-Tokens
-  auch diesen Reset-Block in `style.css` ergänzen.
+- **Never write a hex/rgb color value directly in a component rule.** Every color comes from a
+  custom-property token in `:root` (`style.css`, top of the file) — either a primitive token
+  (`--bg`, `--surface`, `--text`, `--accent`, `--danger`, `--warn`, ...) or a token derived
+  from those via `color-mix(in srgb, var(--x) N%, var(--y))`. A dark-mode override only
+  touches the primitive tokens (in the `@media (prefers-color-scheme: dark)` block and under
+  `:root[data-theme="dark"]`); any component that writes its own hex color instead breaks
+  silently in dark mode (stays light, often unreadable).
+- If a new component needs a new shade that can be expressed as a mix of existing tokens
+  (e.g. "a light accent shimmer over the surface"), add a new `color-mix()` token in `:root`
+  instead of maintaining separate light/dark values — the token then follows every theme
+  change automatically. Only when a color genuinely can't be derived that way (a standalone
+  signal color, see `--now-accent`/`--warn`) does it need a real, hand-picked second value in
+  the dark block.
+- Two exceptions are deliberately **not** tokenized: the day columns' rainbow colors
+  (`--day-1..7`) and their header text color (`#1c1c26`) — the color-coding is content, not
+  decoration, and so stays constant across themes (see REQUIREMENTS.md, section 20).
+- `@media print` resets all primitive tokens back to their light values with `!important`, so
+  a printout never bakes in the active dark theme. Forgetting a new primitive token there
+  means print output can look wrong in dark mode — so when adding a primitive token, also
+  extend that reset block in `style.css`.
 
-## Checkliste für ein neues Feature
+## Checklist for a new feature
 
-1. Reine Logik (Datenmodell-Operationen, Validierung) in `logic.js`/`io.js`/`store.js`,
-   mit Unit-Tests.
-2. Neue Strings in `i18n.js`, beide Sprachen.
-3. DOM-Verdrahtung in `app.js` + ggf. Markup/`data-i18n`-Attribute in `index.html`.
-4. Ändert das Feature die `plan`-Struktur (neues Feld, geändertes `entries`-Format o. Ä.):
-   [EXPORT_FORMAT.md](EXPORT_FORMAT.md) entsprechend nachziehen — das ist die einzige Stelle,
-   die das Export/Import-JSON-Format vollständig spezifiziert.
-5. Manueller Playwright-Durchlauf der betroffenen Interaktion (siehe Test-Philosophie oben).
-6. `npm test` grün, dann committen. CI (`ci.yml`) und Deploy (`deploy-pages.yml`) laufen
-   automatisch bei Push auf `main`.
+1. Pure logic (data-model operations, validation) in `logic.js`/`io.js`/`store.js`, with
+   unit tests.
+2. New strings in `i18n.js`, both languages.
+3. DOM wiring in `app.js` + markup/`data-i18n` attributes in `index.html` as needed.
+4. If the feature changes the `plan` structure (a new field, a changed `entries` format, or
+   similar): update [EXPORT_FORMAT.md](EXPORT_FORMAT.md) to match — it's the one place that
+   fully specifies the export/import JSON format.
+5. Manual Playwright run-through of the affected interaction (see the test philosophy above).
+6. `npm test` green, then commit. CI (`ci.yml`) and deploy (`deploy-pages.yml`) run
+   automatically on push to `main`.
