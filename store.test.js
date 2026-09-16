@@ -8,6 +8,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
+  getTheme,
+  setTheme,
   addPlan,
   removePlan,
   renamePlan,
@@ -158,6 +160,27 @@ test("loadStore defaults showEditIcons to true for an older store without that f
 
   const reloaded = loadStore(storage);
   assert.equal(getShowEditIcons(reloaded), true);
+});
+
+test("getTheme/setTheme default to system and validate against the known theme list", () => {
+  const store = loadStore(createMemoryStorage());
+  assert.equal(getTheme(store), "system");
+  setTheme(store, "dark");
+  assert.equal(getTheme(store), "dark");
+  setTheme(store, "light");
+  assert.equal(getTheme(store), "light");
+  setTheme(store, "solarized"); // unknown theme: ignored
+  assert.equal(getTheme(store), "light");
+});
+
+test("loadStore defaults theme to system for an older store without that field", () => {
+  const storage = createMemoryStorage();
+  const store = loadStore(storage);
+  delete store.theme;
+  saveStore(store, storage);
+
+  const reloaded = loadStore(storage);
+  assert.equal(getTheme(reloaded), "system");
 });
 
 test("addPlan appends and switches the active plan", () => {

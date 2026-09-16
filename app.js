@@ -32,6 +32,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
+  getTheme,
+  setTheme,
   addPlan,
   removePlan,
   renamePlan,
@@ -57,6 +59,10 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   const newPlanBtn = document.getElementById("newPlanBtn");
   const deletePlanBtn = document.getElementById("deletePlanBtn");
   const languageSwitcher = document.getElementById("languageSwitcher");
+  const themeSwitcher = document.getElementById("themeSwitcher");
+  const aboutBtn = document.getElementById("aboutBtn");
+  const aboutModalOverlay = document.getElementById("aboutModalOverlay");
+  const closeAboutModalBtn = document.getElementById("closeAboutModalBtn");
 
   const headerRow = document.getElementById("headerRow");
   const timeColEl = document.querySelector(".time-col");
@@ -136,6 +142,19 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     const show = getShowEditIcons(store);
     document.body.classList.toggle("hide-edit-icons", !show);
     editIconsToggle.checked = show;
+  }
+
+  // "system" leaves data-theme unset so the @media (prefers-color-scheme)
+  // rules in style.css decide; "light"/"dark" force one via the attribute
+  // regardless of the OS preference (see style.css for the token overrides).
+  function applyTheme() {
+    const theme = getTheme(store);
+    if (theme === "system") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.dataset.theme = theme;
+    }
+    themeSwitcher.value = theme;
   }
 
   // --- Rendering --------------------------------------------------------
@@ -344,6 +363,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   function renderAll() {
     applyStaticTranslations();
     applyEditIconsVisibility();
+    applyTheme();
     renderHeader();
     renderPlanSwitcher();
     renderPlanTitle();
@@ -602,6 +622,16 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     timeModalOverlay.classList.add("hidden");
   }
 
+  // --- About modal -----------------------------------------------------------
+
+  function openAboutModal() {
+    aboutModalOverlay.classList.remove("hidden");
+  }
+
+  function closeAboutModal() {
+    aboutModalOverlay.classList.add("hidden");
+  }
+
   function applyTimes(newTimes) {
     if (newTimes.length === 0) return;
     const p = plan();
@@ -831,6 +861,18 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
       if (preset) applyTimes(preset.times);
     });
   });
+  aboutBtn.addEventListener("click", openAboutModal);
+  closeAboutModalBtn.addEventListener("click", closeAboutModal);
+  aboutModalOverlay.addEventListener("click", (e) => {
+    if (e.target === aboutModalOverlay) closeAboutModal();
+  });
+
+  themeSwitcher.addEventListener("change", () => {
+    setTheme(store, themeSwitcher.value);
+    persist();
+    applyTheme();
+  });
+
   timeForm.addEventListener("submit", (e) => {
     e.preventDefault();
     try {
@@ -850,6 +892,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     if (e.key !== "Escape") return;
     if (!modalOverlay.classList.contains("hidden")) closeModal();
     if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
+    if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
   });
 
   planSwitcher.addEventListener("change", () => {

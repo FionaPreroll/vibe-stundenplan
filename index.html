@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Stundenplan</title>
 <link rel="stylesheet" href="style.css" />
+<script>
+  // Sets the theme attribute before first paint, so a dark-mode choice
+  // doesn't flash light while app.js (a deferred module script) loads.
+  // Duplicates just the store key/shape read in store.js's getTheme —
+  // keep the key in sync with STORE_KEY there.
+  (function () {
+    try {
+      var raw = localStorage.getItem("stundenplan-store-v1");
+      var theme = raw && JSON.parse(raw).theme;
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.dataset.theme = theme;
+      }
+    } catch (e) {
+      /* ignore: falls back to the system theme */
+    }
+  })();
+</script>
 </head>
 <body>
   <header class="app-header">
@@ -15,10 +32,16 @@
         <button id="deletePlanBtn" class="icon-btn" type="button" data-i18n-title="deletePlanTitle" data-i18n-aria-label="deletePlanTitle">🗑</button>
       </div>
       <h1 id="planTitle" contenteditable="true" spellcheck="false" data-i18n-title="renameHint"></h1>
-      <select id="languageSwitcher" class="language-switcher" aria-label="Language / Sprache">
+      <select id="themeSwitcher" class="header-select" data-i18n-aria-label="themeSwitcherLabel">
+        <option value="system" data-i18n="themeSystem"></option>
+        <option value="light" data-i18n="themeLight"></option>
+        <option value="dark" data-i18n="themeDark"></option>
+      </select>
+      <select id="languageSwitcher" class="header-select" aria-label="Language / Sprache">
         <option value="de">Deutsch</option>
         <option value="en">English</option>
       </select>
+      <button id="aboutBtn" class="icon-btn" type="button" data-i18n-title="aboutBtnTitle" data-i18n-aria-label="aboutBtnTitle">ⓘ</button>
     </div>
     <div class="app-actions">
       <div class="action-group">
@@ -154,6 +177,31 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- About modal -->
+  <div id="aboutModalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 data-i18n="aboutModalTitle"></h2>
+      <p class="modal-hint about-description" data-i18n="aboutModalDescription"></p>
+      <div class="about-source">
+        <span class="field-group-label" data-i18n="aboutModalSourceLabel"></span>
+        <a
+          id="aboutSourceLink"
+          class="about-link"
+          href="https://github.com/FionaPreroll/vibe-stundenplan"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-i18n="aboutModalSourceLinkText"
+        ></a>
+      </div>
+      <div class="modal-actions">
+        <div></div>
+        <div class="modal-actions-right">
+          <button id="closeAboutModalBtn" type="button" class="btn btn-secondary" data-i18n="closeBtn"></button>
+        </div>
+      </div>
     </div>
   </div>
 

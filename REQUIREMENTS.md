@@ -427,6 +427,59 @@ Anwenden eines Presets/Rasters:
   konsistentes, eigenes Icon-Set statt der bestehenden Emoji-Icons (`+`/`🗑`/`🖨`) und ist eine
   eigene, spätere Entscheidung, kein Nebenprodukt dieses Umbaus.
 
+### 20. Dunkelmodus
+
+- **Drei Zustände** wie beim Sprach-/Bearbeitungssymbole-Toggle, kein reiner Ja/Nein-Schalter:
+  `<select id="themeSwitcher">` mit "System" (folgt `prefers-color-scheme`), "Hell", "Dunkel".
+  Persistiert pro Browser in `store.theme` (`getTheme`/`setTheme` in `store.js`, analog zu
+  `getLanguage`), nicht pro Plan — wie Sprache und Bearbeitungssymbole-Sichtbarkeit ist das
+  eine Anzeige-Einstellung, keine Termin-/Plan-Eigenschaft.
+- **Umsetzung über CSS Custom Properties, nicht zwei komplette Stylesheets:** Alle
+  Basis-Tokens (`--bg`, `--surface`, `--border`, `--text`, `--text-muted`, `--accent`,
+  `--danger`, `--warn`, `--shadow`) werden für Dunkel neu gesetzt — einmal unter
+  `@media (prefers-color-scheme: dark)` (nur wenn kein `data-theme="light"` explizit gesetzt
+  ist) und einmal unter `:root[data-theme="dark"]` (erzwingt Dunkel unabhängig vom
+  Betriebssystem). `app.js` setzt/entfernt nur das `data-theme`-Attribut auf `<html>`
+  (`applyTheme()`), keine Klassen-Umschalterei o. Ä.
+- **Abgeleitete Zwischentöne statt doppelter Hell-/Dunkel-Werte:** Farben, die eigentlich nur
+  ein Tarnton eines Basis-Tokens sind (z. B. der helle Hintergrund gefüllter Zellen, die
+  Sekundärknopf-Fläche, der Zeitspalten-Hintergrund), sind einmalig im Basis-`:root` als
+  `color-mix(in srgb, var(--irgendwas) X%, var(--surface))` definiert — sie berechnen sich
+  bei jedem Theme-Wechsel automatisch neu aus den (dann überschriebenen) Basis-Tokens, ohne
+  dass sie im Dark-Block wiederholt werden müssten. Nur wirklich eigenständige, nicht
+  ableitbare Farben (z. B. `--warn`, die Amber-Hinweistextfarbe) haben einen echten,
+  handgewählten zweiten Wert im Dark-Block.
+- **Die Regenbogenfarben der Tagesspalten (`--day-1..7`) und deren Kopf-Textfarbe
+  (`#1c1c26`) ändern sich bewusst nicht mit dem Theme** — die Farbcodierung ist Inhalt
+  (Punkt 5), keine Deko, und der Kopftext sitzt immer auf einer hellen Pastellfläche,
+  unabhängig vom Seiten-Theme.
+- **Druckausgabe bleibt immer hell**, unabhängig vom aktiven Bildschirm-Theme: `@media print`
+  setzt alle Basis-Tokens mit `!important` zurück auf ihre Hell-Werte (nötig, weil eine
+  einfache `:root`-Regel sonst an der höheren Selektor-Spezifität von
+  `:root[data-theme="dark"]` scheitert — eine `@media`-Regel allein erhöht die Spezifität
+  nicht). Damit bekommen auch alle `color-mix()`-Token beim Drucken automatisch wieder ihre
+  Hell-Werte, nicht nur `body { background }`.
+- **Kein Flackern beim Laden:** Da `app.js` als `type="module"` erst nach dem HTML-Parsing
+  läuft, würde eine gespeicherte Dunkel-Wahl sonst kurz hell aufblitzen, bevor `app.js` sie
+  anwendet. Ein kleines, synchrones Inline-`<script>` im `<head>` von `index.html` liest den
+  Store direkt aus `localStorage` und setzt `data-theme` schon vor dem ersten Rendern — dupliziert
+  absichtlich nur den Storage-Key (siehe Kommentar dort, muss mit `STORE_KEY` in `store.js`
+  synchron bleiben) statt das ganze Modul zu importieren.
+
+### 21. Info-Modal mit Quellcode-Link
+
+- Ein `ⓘ`-Icon-Button (`#aboutBtn`, ganz rechts im Header, neben den beiden Auswahlfeldern)
+  öffnet ein Modal nach demselben Muster wie die Termin-/Zeitraster-Modals (`.modal-overlay`/
+  `.modal`, Escape schließt, Klick auf den Hintergrund schließt).
+- Inhalt: Kurzbeschreibung der App (inkl. Hinweis, dass alle Daten ausschließlich lokal im
+  Browser bleiben — keine Server-Übertragung, siehe Punkt 9) plus ein Link "Auf GitHub
+  ansehen" zum Quell-Repository. Bewusst kein Versions-/Build-Info-Text — es gibt keinen
+  Build-Schritt und keine Versionsnummer, die das sinnvoll anzeigen könnte (Punkt "Bewusste
+  Nicht-Ziele").
+- Gehört zu keiner der drei Toolbar-Gruppen aus Punkt 19 (nicht Daten, nicht Raster, nicht
+  Ansicht) — daher bewusst kein Teil von `.app-actions`, sondern ein eigener Button im
+  `header-top` neben den globalen Auswahlfeldern.
+
 ## Bewusste Nicht-Ziele (damit sie in einem Rewrite nicht versehentlich neu diskutiert werden)
 
 - Kein Build-Tooling (Webpack/Vite/Bundler) für die App — bewusst bei reinen, direkt
@@ -447,3 +500,6 @@ Anwenden eines Presets/Rasters:
   Sub-Raster-Einrückung verkomplizieren (siehe Punkt 17).
 - Kein automatisches Ausblenden leerer Zeilen in der Druckansicht — Druck zeigt exakt den
   Bildschirminhalt minus Bedienelemente, keine zusätzliche Content-Filterung (siehe Punkt 15).
+- Keine Versions-/Build-Nummer irgendwo in der UI (z. B. im Info-Modal, Punkt 21) — ohne
+  Build-Schritt gibt es keinen natürlichen Erzeugungspunkt dafür, der nicht manuell gepflegt
+  werden müsste.

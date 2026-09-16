@@ -1,8 +1,13 @@
 import { codedError } from "./logic.js";
 import { LANGUAGES, DEFAULT_LANGUAGE, DAYS_BY_LANGUAGE, translate } from "./i18n.js";
 
-const STORE_KEY = "stundenplan-store-v1";
+const STORE_KEY = "stundenplan-store-v1"; // also duplicated in index.html's inline pre-paint theme script — keep in sync
 const LEGACY_KEY = "stundenplan-data-v1";
+
+// "system" follows the OS/browser color-scheme preference (prefers-color-scheme in
+// style.css); "light"/"dark" force one regardless of it. Not language-dependent, so it
+// lives here rather than i18n.js.
+const THEMES = ["system", "light", "dark"];
 
 export const INITIAL_ROW_COUNT = 10;
 
@@ -83,6 +88,9 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
         if (typeof parsed.showEditIcons !== "boolean") {
           parsed.showEditIcons = true;
         }
+        if (!THEMES.includes(parsed.theme)) {
+          parsed.theme = "system";
+        }
         Object.values(parsed.plans).forEach((plan) => normalizePlan(plan, parsed.language));
         return parsed;
       }
@@ -95,6 +103,7 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
   return {
     language: defaultLanguage,
     showEditIcons: true,
+    theme: "system",
     activePlanId: initialPlan.id,
     planOrder: [initialPlan.id],
     plans: { [initialPlan.id]: initialPlan },
@@ -124,6 +133,15 @@ export function getShowEditIcons(store) {
 
 export function setShowEditIcons(store, show) {
   store.showEditIcons = Boolean(show);
+  return store;
+}
+
+export function getTheme(store) {
+  return THEMES.includes(store.theme) ? store.theme : "system";
+}
+
+export function setTheme(store, theme) {
+  if (THEMES.includes(theme)) store.theme = theme;
   return store;
 }
 

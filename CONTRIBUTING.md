@@ -110,6 +110,29 @@ einhalten: nie im ausgelieferten App-Code, nie in `npm test` nötig.
   ab dem Zeitpunkt freier Text und bleibt unangetastet. Details und die
   Kollisions-Absicherung: REQUIREMENTS.md, Abschnitt 12.
 
+## Farben & Dark Mode
+
+- **Nie einen Hex-/rgb-Farbwert direkt in eine Komponentenregel schreiben.** Jede Farbe kommt
+  aus einem Custom-Property-Token in `:root` (`style.css`, oben) — entweder ein Basis-Token
+  (`--bg`, `--surface`, `--text`, `--accent`, `--danger`, `--warn`, ...) oder ein davon
+  abgeleitetes `color-mix(in srgb, var(--x) N%, var(--y))`-Token. Ein Dark-Mode-Override
+  betrifft nur die Basis-Tokens (im `@media (prefers-color-scheme: dark)`-Block und unter
+  `:root[data-theme="dark"]`); jede Komponente, die stattdessen ihre eigene Hex-Farbe
+  schreibt, bricht lautlos im Dunkelmodus (bleibt hell, oft unlesbar).
+- Braucht eine neue Komponente einen neuen Farbton, der sich als Mix aus bestehenden Tokens
+  ausdrücken lässt (z. B. "leichter Akzent-Schimmer über der Fläche"), ein neues
+  `color-mix()`-Token in `:root` ergänzen statt Hell-/Dunkel-Werte doppelt zu pflegen — das
+  Token folgt dann automatisch jedem Theme-Wechsel. Nur wenn sich die Farbe nicht sinnvoll
+  ableiten lässt (eigenständige Signalfarbe, siehe `--now-accent`/`--warn`), braucht es einen
+  echten zweiten, handgewählten Wert im Dark-Block.
+- Zwei Ausnahmen sind absichtlich **nicht** tokenisiert: die Regenbogenfarben der Tagesspalten
+  (`--day-1..7`) und deren Kopf-Textfarbe (`#1c1c26`) — die Farbcodierung ist Inhalt, nicht
+  Deko, und bleibt deshalb themenunabhängig konstant (siehe REQUIREMENTS.md, Abschnitt 20).
+- `@media print` setzt alle Basis-Tokens mit `!important` auf ihre Hell-Werte zurück, damit
+  Ausdrucke nie das aktive Dunkel-Theme mit ausdrucken. Ein neues Basis-Token dort vergessen →
+  Druck-Ausgabe kann im Dunkelmodus falsch aussehen, also beim Hinzufügen eines Basis-Tokens
+  auch diesen Reset-Block in `style.css` ergänzen.
+
 ## Checkliste für ein neues Feature
 
 1. Reine Logik (Datenmodell-Operationen, Validierung) in `logic.js`/`io.js`/`store.js`,
