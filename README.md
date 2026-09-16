@@ -22,9 +22,15 @@ are both fully supported.
   [EXPORT_FORMAT.md](EXPORT_FORMAT.md)
 - Switchable German/English, including automatic browser-language detection
 - Fully keyboard-operable (Enter saves, Escape discards)
+- Light/dark/system theme, plus a one-tap edit lock for a clean, read-only "just look and use
+  it" view
 
 Details, architecture, and deliberate scope decisions: see [REQUIREMENTS.md](REQUIREMENTS.md).
 Notes for contributing/further development: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Dark mode with editing locked
+
+![Dark mode, edit lock enabled](screenshots/app-dark-locked.png)
 
 ### Adding an entry
 

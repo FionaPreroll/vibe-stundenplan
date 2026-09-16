@@ -1,6 +1,7 @@
 // Generates the README screenshots from a live run of the app: a populated
-// weekly plan, the entry modal, and the time-raster modal. Run locally with
-// `npm run screenshots`, or automatically via
+// weekly plan (a university timetable, light mode), a second plan in dark
+// mode with editing locked, the entry modal, and the time-raster modal. Run
+// locally with `npm run screenshots`, or automatically via
 // .github/workflows/screenshots.yml on every push to main.
 import { chromium } from "playwright";
 import http from "node:http";
@@ -62,6 +63,22 @@ async function addEntry(page, { day, row, rowEnd, title, description, link, star
   await page.click("#saveEntryBtn");
 }
 
+// Removes a day column by its current display name (must be an exact match
+// of the full, non-abbreviated .day-name text).
+async function removeDayColumn(page, dayName) {
+  await page
+    .locator("th.day-col")
+    .filter({ has: page.locator(".day-name", { hasText: dayName }) })
+    .locator(".col-remove-btn")
+    .click();
+}
+
+// Removes the last (bottommost) row — used to trim the trailing empty rows
+// a raster narrower than the initial row count leaves behind.
+async function removeLastRow(page) {
+  await page.locator("#planBody tr").last().locator(".row-remove-btn").click();
+}
+
 async function main() {
   const server = await startServer();
   const browser = await chromium.launch();
@@ -79,6 +96,11 @@ async function main() {
   await page.keyboard.press("Control+A");
   await page.keyboard.type("Winter Semester 25/26");
   await page.keyboard.press("Enter");
+
+  // A university timetable has no weekend classes — drop those two columns
+  // rather than just leaving them empty.
+  await removeDayColumn(page, "Saturday");
+  await removeDayColumn(page, "Sunday");
 
   await page.click("#timePresetBtn");
   await page.fill("#rasterInterval", "60");
@@ -121,7 +143,8 @@ async function main() {
   // custom start/end time below is chosen to actually sit inside that hour
   // (a sub-raster range, not an unrelated time of day) — otherwise the
   // modal shows a start/end that has nothing to do with the row it's on.
-  await page.click('td.data-cell[data-day="Saturday"][data-row="2"]');
+  // Wednesday row 2 is otherwise unused by the entries above.
+  await page.click('td.data-cell[data-day="Wednesday"][data-row="2"]');
   await page.fill("#fieldTitle", "Study group");
   await page.fill("#fieldDescription", "Library, Group Room 4");
   await page.fill("#fieldStartTime", "10:15");
@@ -133,6 +156,42 @@ async function main() {
   await page.click("#timePresetBtn");
   await page.locator("#timeModalOverlay .modal").screenshot({ path: path.join(OUT_DIR, "time-modal.png") });
   await page.click("#cancelTimeModalBtn");
+
+  // A second, German example plan — an everyday "life" schedule rather than
+  // a university one, with the weekend filled in — used to show off dark
+  // mode and the edit lock together. Switching language first so the new
+  // plan gets German day-name defaults (Montag..Sonntag) to match.
+  await page.selectOption("#languageSwitcher", "de");
+  await page.click("#newPlanBtn");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Mein Alltag");
+  await page.keyboard.press("Enter");
+
+  // 2h raster from 08:00 to 22:00, so row 0 = 08:00-10:00, row 1 =
+  // 10:00-12:00, ..., row 6 = 20:00-22:00 (7 rows).
+  await page.click("#timePresetBtn");
+  await page.fill("#rasterInterval", "120");
+  await page.fill("#rasterStart", "08:00");
+  await page.fill("#rasterEnd", "22:00");
+  await page.click("#applyRasterBtn");
+
+  await addEntry(page, { day: "Donnerstag", row: 0, title: "Yoga" });
+  await addEntry(page, { day: "Montag", row: 1, title: "Sport", description: "Joggen im Park" });
+  await addEntry(page, { day: "Mittwoch", row: 2, title: "Mittagessen mit Oma" });
+  await addEntry(page, { day: "Sonntag", row: 2, title: "Familienessen" });
+  await addEntry(page, { day: "Samstag", row: 3, title: "Fußball", description: "Turnier in der Halle" });
+  await addEntry(page, { day: "Dienstag", row: 4, title: "Einkaufen" });
+  await addEntry(page, { day: "Freitag", row: 5, title: "Kino", description: "Mit Freunden" });
+
+  // The raster above only fills 7 of the 10 initial rows — trim the empty
+  // trailing ones so the screenshot doesn't end in blank rows.
+  await removeLastRow(page);
+  await removeLastRow(page);
+  await removeLastRow(page);
+
+  await page.selectOption("#themeSwitcher", "dark");
+  await page.click("#editLockBtn");
+  await page.screenshot({ path: path.join(OUT_DIR, "app-dark-locked.png"), fullPage: true });
 
   await browser.close();
   server.close();

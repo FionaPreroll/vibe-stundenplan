@@ -155,8 +155,21 @@ body {
   cursor: not-allowed;
 }
 
+/* Groups the title with the lock button so they stay on one line even
+   when .header-top itself switches to a column layout below (narrow
+   screens, see media query further down) — otherwise the lock button
+   would fall onto its own row there, adding header height for no reason. */
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .app-header h1 {
   flex: 1 1 auto;
+  min-width: 0;
   font-size: 1.4rem;
   margin: 0;
   padding: 2px 6px;
@@ -804,6 +817,14 @@ body.no-select {
   .header-select,
   #aboutBtn {
     align-self: flex-end;
+  }
+
+  /* Stretches .title-row to the header's full width so the title (flex: 1
+     1 auto) grows to fill it, pushing the lock button flush to the right
+     edge — same visual spot .header-select/#aboutBtn above land in —
+     instead of the button sitting right up against the title text. */
+  .title-row {
+    align-self: stretch;
   }
 
   /* Locked + narrow: even the plan switcher and theme/language selects go,

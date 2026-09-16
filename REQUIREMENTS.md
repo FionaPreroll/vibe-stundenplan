@@ -490,6 +490,10 @@ Applying a preset/grid:
 - **Locked + narrow (≤ 600px):** the plan switcher and the theme/language selects also hide,
   leaving only the title and the lock button to unlock again — there just isn't room for a row
   of selects next to the title at phone width once the rest of the chrome is already gone.
+  `#planTitle` and `#editLockBtn` are grouped in a `.title-row` wrapper (its own small flex row)
+  specifically so the lock button stays on the same line as the title rather than falling onto
+  its own row when `.header-top` itself switches to a column layout below 600px — keeping the
+  locked+narrow header down to that one compact row instead of two.
 - **Locked actually blocks editing**, unlike `showEditIcons`/dark mode which are pure display
   preferences: click-to-add and drag-select (item 4, including the touch long-press path from
   item 24) no-op while locked (guarded once, at the shared `mousedown`/touch-long-press-timer
