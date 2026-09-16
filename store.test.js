@@ -8,6 +8,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
+  getToolbarCollapsed,
+  setToolbarCollapsed,
   getTheme,
   setTheme,
   addPlan,
@@ -160,6 +162,25 @@ test("loadStore defaults showEditIcons to true for an older store without that f
 
   const reloaded = loadStore(storage);
   assert.equal(getShowEditIcons(reloaded), true);
+});
+
+test("getToolbarCollapsed/setToolbarCollapsed default to false and coerce to boolean", () => {
+  const store = loadStore(createMemoryStorage());
+  assert.equal(getToolbarCollapsed(store), false);
+  setToolbarCollapsed(store, true);
+  assert.equal(getToolbarCollapsed(store), true);
+  setToolbarCollapsed(store, 0); // falsy, coerced
+  assert.equal(getToolbarCollapsed(store), false);
+});
+
+test("loadStore defaults toolbarCollapsed to false for an older store without that field", () => {
+  const storage = createMemoryStorage();
+  const store = loadStore(storage);
+  delete store.toolbarCollapsed;
+  saveStore(store, storage);
+
+  const reloaded = loadStore(storage);
+  assert.equal(getToolbarCollapsed(reloaded), false);
 });
 
 test("getTheme/setTheme default to system and validate against the known theme list", () => {

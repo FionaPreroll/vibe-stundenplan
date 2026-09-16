@@ -32,6 +32,8 @@ import {
   setLanguage,
   getShowEditIcons,
   setShowEditIcons,
+  getToolbarCollapsed,
+  setToolbarCollapsed,
   getTheme,
   setTheme,
   addPlan,
@@ -59,6 +61,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   const newPlanBtn = document.getElementById("newPlanBtn");
   const deletePlanBtn = document.getElementById("deletePlanBtn");
   const languageSwitcher = document.getElementById("languageSwitcher");
+  const toolbarCollapseBtn = document.getElementById("toolbarCollapseBtn");
   const themeSwitcher = document.getElementById("themeSwitcher");
   const aboutBtn = document.getElementById("aboutBtn");
   const aboutModalOverlay = document.getElementById("aboutModalOverlay");
@@ -143,6 +146,20 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     const show = getShowEditIcons(store);
     document.body.classList.toggle("hide-edit-icons", !show);
     editIconsToggle.checked = show;
+  }
+
+  // A "just look at and use the schedule" display mode: hides the toolbar,
+  // the plan +/- buttons, the about button, and (like hide-edit-icons) the
+  // inline row/column-remove icons — collapsed narrower than 600px, only
+  // the title is left. Doesn't touch the underlying showEditIcons
+  // preference, so expanding again restores whatever that toggle had.
+  function applyToolbarCollapsed() {
+    const collapsed = getToolbarCollapsed(store);
+    document.body.classList.toggle("toolbar-collapsed", collapsed);
+    toolbarCollapseBtn.textContent = collapsed ? "⌄" : "⌃";
+    const titleKey = collapsed ? "expandToolbarTitle" : "collapseToolbarTitle";
+    toolbarCollapseBtn.title = t(titleKey);
+    toolbarCollapseBtn.setAttribute("aria-label", t(titleKey));
   }
 
   // "system" leaves data-theme unset so the @media (prefers-color-scheme)
@@ -364,6 +381,7 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
   function renderAll() {
     applyStaticTranslations();
     applyEditIconsVisibility();
+    applyToolbarCollapsed();
     applyTheme();
     renderHeader();
     renderPlanSwitcher();
@@ -900,6 +918,12 @@ import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, WEEKDAYS_BY_LANGUAGE, detectDefault
     setTheme(store, themeSwitcher.value);
     persist();
     applyTheme();
+  });
+
+  toolbarCollapseBtn.addEventListener("click", () => {
+    setToolbarCollapsed(store, !getToolbarCollapsed(store));
+    persist();
+    applyToolbarCollapsed();
   });
 
   timeForm.addEventListener("submit", (e) => {

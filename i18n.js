@@ -37,6 +37,8 @@ const STRINGS = {
     themeSystem: "System",
     themeLight: "Hell",
     themeDark: "Dunkel",
+    collapseToolbarTitle: "Werkzeugleiste einklappen",
+    expandToolbarTitle: "Werkzeugleiste ausklappen",
     aboutBtnTitle: "Über diese App",
     aboutModalTitle: "Über Vibe-Stundenplan",
     aboutModalDescription:
@@ -123,6 +125,8 @@ const STRINGS = {
     themeSystem: "System",
     themeLight: "Light",
     themeDark: "Dark",
+    collapseToolbarTitle: "Collapse toolbar",
+    expandToolbarTitle: "Expand toolbar",
     aboutBtnTitle: "About this app",
     aboutModalTitle: "About Vibe-Stundenplan",
     aboutModalDescription:

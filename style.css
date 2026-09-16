@@ -288,12 +288,34 @@ body {
 
 /* Hides the interactive icons (row/column remove, add-column) without
    disabling the underlying click/drag behavior — a display preference,
-   not an edit-lock. */
+   not an edit-lock. Collapsing the header toolbar (below) implies the same
+   for these inline icons, without touching the hide-edit-icons toggle's
+   own saved state — expanding the toolbar again restores whatever that
+   toggle was set to. */
 body.hide-edit-icons .row-remove-btn,
 body.hide-edit-icons .col-remove-btn,
 body.hide-edit-icons .add-day-col,
 body.hide-edit-icons .cell-placeholder,
-body.hide-edit-icons .col-resize-handle {
+body.hide-edit-icons .col-resize-handle,
+body.toolbar-collapsed .row-remove-btn,
+body.toolbar-collapsed .col-remove-btn,
+body.toolbar-collapsed .add-day-col,
+body.toolbar-collapsed .cell-placeholder,
+body.toolbar-collapsed .col-resize-handle {
+  display: none !important;
+}
+
+/* Collapses the header down to just the title (plus the plan switcher and
+   theme/language selects, which stay reachable down to tablet width) for a
+   "look at and use the schedule, don't edit it" view — a display
+   preference like hide-edit-icons above, not an edit lock: every
+   interaction (click-to-add, drag-select, renaming) keeps working, only
+   the buttons/icons that trigger them get out of the way. */
+body.toolbar-collapsed .app-actions,
+body.toolbar-collapsed .hint-text,
+body.toolbar-collapsed #newPlanBtn,
+body.toolbar-collapsed #deletePlanBtn,
+body.toolbar-collapsed #aboutBtn {
   display: none !important;
 }
 
@@ -755,6 +777,14 @@ body.no-select {
   #aboutBtn {
     align-self: flex-end;
   }
+
+  /* Collapsed + narrow: even the plan switcher and theme/language selects
+     go, leaving just the title (and the toggle to expand again). */
+  body.toolbar-collapsed .plan-controls,
+  body.toolbar-collapsed #themeSwitcher,
+  body.toolbar-collapsed #languageSwitcher {
+    display: none !important;
+  }
 }
 
 @media (max-width: 420px) {
@@ -785,6 +815,7 @@ body.no-select {
   #themeSwitcher,
   #languageSwitcher,
   #aboutBtn,
+  #toolbarCollapseBtn,
   .app-actions,
   .hint-text,
   .row-remove-btn,

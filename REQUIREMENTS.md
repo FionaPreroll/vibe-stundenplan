@@ -469,6 +469,34 @@ Applying a preset/grid:
   so deliberately not part of `.app-actions`, but its own button in `header-top` next to the
   global selects.
 
+### 22. Collapsible header toolbar
+
+- **Trigger:** a "just look at and use the schedule" mode — collapse away everything that's
+  about editing/managing plans, keeping only what's needed to read the current one and switch
+  to another.
+- A chevron button (`#toolbarCollapseBtn`, right next to the title — the one element that's
+  never hidden by this) toggles `body.toolbar-collapsed`. Persisted per browser in
+  `store.toolbarCollapsed` (`getToolbarCollapsed`/`setToolbarCollapsed` in `store.js`, same
+  pattern as `showEditIcons`), not per plan, default off (collapsed is opt-in, not the
+  default for new/existing users).
+- **Collapsed hides:** the whole grouped toolbar from item 19 (Data/Grid/Print/Reset), the
+  hint text, the plan +/🗑 buttons, and the About button (item 21) — leaving the plan title,
+  the plan switcher dropdown, and the theme/language selects from items 20/12. It also hides
+  the same inline table edit icons that `showEditIcons` (item 16) does (row/column-remove,
+  add-column, the resize handles, the empty-cell "+") — reusing that rule's selector list
+  rather than duplicating it, and without touching `showEditIcons`'s own saved value, so
+  expanding the toolbar again shows those icons exactly as that toggle had them.
+- **Collapsed + narrow (≤ 600px):** the plan switcher and the theme/language selects also
+  hide, leaving only the title and the chevron to expand again — there just isn't room for a
+  row of selects next to the title at phone width once the rest of the chrome is already
+  gone.
+- Like `showEditIcons` and dark mode, this is a display preference, not an edit lock: every
+  interaction (click-to-add, drag-select, inline rename of the title/columns, switching
+  plans) keeps working exactly the same while collapsed, including on the plan-switcher
+  dropdown that stays visible on wider screens.
+- Always hidden in print (item 15) regardless of collapsed state, like every other
+  interactive header control.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
