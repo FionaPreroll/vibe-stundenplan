@@ -38,6 +38,8 @@ const STRINGS = {
     timePresetBtn: "Zeiten festlegen",
     addRowBtn: "+ Zeile hinzufügen",
     resetBtn: "Zurücksetzen",
+    printBtn: "🖨 Drucken",
+    editIconsToggleLabel: "Bearbeitungssymbole anzeigen",
     hintText:
       "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin.",
     timeColHeader: "Zeit",
@@ -107,6 +109,8 @@ const STRINGS = {
     timePresetBtn: "Set time grid",
     addRowBtn: "+ Add row",
     resetBtn: "Reset",
+    printBtn: "🖨 Print",
+    editIconsToggleLabel: "Show edit icons",
     hintText: "Tip: click a cell to add an entry, or drag across several time slots for a longer one.",
     timeColHeader: "Time",
     timeInputPlaceholder: "e.g. 08:00–08:45",

@@ -27,6 +27,8 @@ import {
   getActivePlan,
   getLanguage,
   setLanguage,
+  getShowEditIcons,
+  setShowEditIcons,
   addPlan,
   removePlan,
   renamePlan,
@@ -56,6 +58,8 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
   const planBody = document.getElementById("planBody");
   const addRowBtn = document.getElementById("addRowBtn");
   const resetBtn = document.getElementById("resetBtn");
+  const printBtn = document.getElementById("printBtn");
+  const editIconsToggle = document.getElementById("editIconsToggle");
   const exportBtn = document.getElementById("exportBtn");
   const importBtn = document.getElementById("importBtn");
   const importFileInput = document.getElementById("importFileInput");
@@ -120,6 +124,12 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
       el.setAttribute("aria-label", t(el.dataset.i18nAriaLabel));
     });
     languageSwitcher.value = getLanguage(store);
+  }
+
+  function applyEditIconsVisibility() {
+    const show = getShowEditIcons(store);
+    document.body.classList.toggle("hide-edit-icons", !show);
+    editIconsToggle.checked = show;
   }
 
   // --- Rendering --------------------------------------------------------
@@ -305,6 +315,7 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
   function renderAll() {
     applyStaticTranslations();
+    applyEditIconsVisibility();
     renderHeader();
     renderPlanSwitcher();
     renderPlanTitle();
@@ -697,6 +708,12 @@ import { WEEKDAYS_BY_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.j
 
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
+  printBtn.addEventListener("click", () => window.print());
+  editIconsToggle.addEventListener("change", () => {
+    setShowEditIcons(store, editIconsToggle.checked);
+    persist();
+    applyEditIconsVisibility();
+  });
   deleteEntryBtn.addEventListener("click", deleteEntry);
   cancelModalBtn.addEventListener("click", closeModal);
   modalOverlay.addEventListener("click", (e) => {

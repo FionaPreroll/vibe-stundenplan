@@ -6,6 +6,8 @@ import {
   getActivePlan,
   getLanguage,
   setLanguage,
+  getShowEditIcons,
+  setShowEditIcons,
   addPlan,
   removePlan,
   renamePlan,
@@ -117,6 +119,25 @@ test("getLanguage/setLanguage validate against the known language list", () => {
   assert.equal(getLanguage(store), "en");
   setLanguage(store, "fr"); // unknown language: ignored
   assert.equal(getLanguage(store), "en");
+});
+
+test("getShowEditIcons/setShowEditIcons default to true and coerce to boolean", () => {
+  const store = loadStore(createMemoryStorage());
+  assert.equal(getShowEditIcons(store), true);
+  setShowEditIcons(store, false);
+  assert.equal(getShowEditIcons(store), false);
+  setShowEditIcons(store, 1); // truthy, coerced
+  assert.equal(getShowEditIcons(store), true);
+});
+
+test("loadStore defaults showEditIcons to true for an older store without that field", () => {
+  const storage = createMemoryStorage();
+  const store = loadStore(storage);
+  delete store.showEditIcons;
+  saveStore(store, storage);
+
+  const reloaded = loadStore(storage);
+  assert.equal(getShowEditIcons(reloaded), true);
 });
 
 test("addPlan appends and switches the active plan", () => {

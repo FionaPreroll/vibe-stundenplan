@@ -158,6 +158,31 @@ body {
   color: white;
 }
 
+.edit-icons-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.edit-icons-toggle input {
+  cursor: pointer;
+}
+
+/* Hides the interactive icons (row/column remove, add-column) without
+   disabling the underlying click/drag behavior — a display preference,
+   not an edit-lock. */
+body.hide-edit-icons .row-remove-btn,
+body.hide-edit-icons .col-remove-btn,
+body.hide-edit-icons .add-day-col,
+body.hide-edit-icons .cell-placeholder {
+  display: none !important;
+}
+
 main {
   padding: 20px 24px 60px;
 }
@@ -172,7 +197,17 @@ main {
 table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 920px;
+  /* Fixed layout (not auto): with dynamic-width form controls in the time
+     column, auto layout sizes columns from their natural/intrinsic content
+     width and mostly ignores small min-width hints, which made the time
+     column render far wider than declared. Fixed layout instead honors the
+     declared widths below directly, and columns without an explicit width
+     (the day columns) share the remainder equally — so the initial 7-day
+     layout actually fits without horizontal scroll down to tablet widths.
+     min-width below is the floor under which it scrolls instead of
+     squeezing columns further (unavoidable on narrow phones). */
+  table-layout: fixed;
+  min-width: 600px;
 }
 
 thead th {
@@ -183,13 +218,17 @@ thead th {
   color: #1c1c26;
   text-align: center;
   border-bottom: 2px solid var(--border);
-  white-space: nowrap;
 }
 
 .time-col {
-  width: 130px;
+  width: 92px;
+  white-space: nowrap;
   background: #f0f0f5 !important;
   color: var(--text) !important;
+}
+
+.day-col {
+  min-width: 88px;
 }
 
 /* Column colors are assigned inline (cycled through --day-1..7) since the
@@ -207,6 +246,8 @@ thead th {
   border-radius: 4px;
   padding: 1px 3px;
   cursor: text;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .day-name:hover {
@@ -317,7 +358,7 @@ tbody td {
   cursor: pointer;
   padding: 8px 10px;
   transition: background 0.12s ease;
-  min-width: 110px;
+  min-width: 88px;
 }
 
 .data-cell:hover {
@@ -412,6 +453,8 @@ body.no-select {
   padding: 22px;
   width: 100%;
   max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
@@ -522,5 +565,97 @@ body.no-select {
   .header-top {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .language-switcher {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 420px) {
+  main {
+    padding: 16px 12px 40px;
+  }
+
+  .data-cell {
+    padding: 6px 8px;
+    min-width: 76px;
+  }
+
+  .time-col,
+  .time-cell {
+    min-width: 78px;
+  }
+}
+
+/* Print view: just the plan title and the table. Everything interactive
+   (plan/language controls, action buttons, edit icons, modals) is hidden;
+   day-header and filled-cell background colors are forced to print since
+   the rainbow coding is the point, not decoration. */
+@media print {
+  .plan-controls,
+  #languageSwitcher,
+  .app-actions,
+  .hint-text,
+  .row-remove-btn,
+  .col-remove-btn,
+  .add-day-col,
+  .cell-placeholder,
+  .modal-overlay {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .app-header {
+    border-bottom: none;
+    padding: 0 0 12px;
+  }
+
+  .app-header h1 {
+    border-color: transparent !important;
+    background: none !important;
+    cursor: default;
+    padding: 0;
+  }
+
+  main {
+    padding: 0;
+  }
+
+  .table-wrap {
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  table {
+    width: 100%;
+  }
+
+  .time-col,
+  .time-cell {
+    width: 130px;
+  }
+
+  .time-input::placeholder {
+    color: transparent;
+  }
+
+  thead th,
+  .data-cell.filled {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .data-cell {
+    cursor: default;
+  }
+
+  @page {
+    size: landscape;
+    margin: 1.2cm;
   }
 }

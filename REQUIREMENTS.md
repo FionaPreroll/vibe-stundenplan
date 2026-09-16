@@ -277,6 +277,74 @@ Anwenden eines Presets/Rasters:
   (Playwright, devDependency) — betrifft nur dieses Tooling, nie den App-Code selbst
   (siehe "Technische Rahmenbedingungen" oben).
 
+### 15. Druckansicht
+
+- "🖨 Drucken"-Button ruft `window.print()` auf; ein `@media print`-Stylesheet reduziert
+  die Ansicht auf Plantitel + Tabelle.
+- Ausgeblendet werden: Plan-Switcher, Sprachwahl, alle Aktions-Buttons, Bearbeitungssymbole
+  (Zeilen/Spalten entfernen, Spalte hinzufügen, leere-Zelle-"+"), Modals. Der Titel verliert
+  seine editierbar-wirkende Umrandung (kein `contenteditable`-Styling im Druck, auch wenn
+  das Attribut technisch aktiv bleibt).
+- Die Regenbogenfarben der Kopfzeile und gefüllter Zellen werden per
+  `print-color-adjust: exact` erzwungen, da sie ein inhaltliches Merkmal sind (Farbcodierung
+  der Wochentage), nicht nur Dekoration, die ein sparsamer Browser-Druck sonst wegließe.
+- Die Zeitspalte wird im Druck breiter dargestellt als am Bildschirm (dort schmal gehalten,
+  um Platz für Tablet-Breiten zu sparen), damit volle Zeit-Labels nicht abgeschnitten
+  werden; Platzhaltertext ("z. B. …") in noch nicht befüllten Zeit-Feldern wird im Druck
+  unsichtbar (`::placeholder { color: transparent }`), damit leere Zeilen nicht wie
+  Formularfelder aussehen.
+- `@page { size: landscape }` als Hinweis an den Browser — Weekly-Tabellen sind breiter als
+  hoch, auch wenn nicht jeder Browser/jedes Betriebssystem das automatisch übernimmt (dann
+  wählt die Nutzerin Querformat manuell im Druckdialog).
+- Bewusst **nicht** umgesetzt: automatisches Ausblenden komplett leerer Zeilen im Druck
+  (Papier sparen) — die Druckansicht zeigt exakt das, was auch am Bildschirm zu sehen ist,
+  minus Bedienelemente, ohne zusätzliche Content-Filterung.
+
+### 16. Bearbeitungssymbole abschaltbar
+
+- Checkbox im Header ("Bearbeitungssymbole anzeigen"/"Show edit icons") blendet die
+  Zeilen-/Spalten-Entfernen-×, den Spalte-hinzufügen-"+" und das "+" in leeren Zellen aus.
+- Reine Anzeige-Einstellung: Die zugrunde liegende Interaktion (Zelle anklicken, Drag-Auswahl,
+  Umbenennen per Klick) bleibt vollständig funktionsfähig, auch wenn die Symbole ausgeblendet
+  sind — kein "Edit-Lock", nur Aufräumen der Optik (z. B. für ruhigere Ansicht/Präsentation).
+- Persistiert pro Browser (wie die Sprache), nicht pro Plan — `store.showEditIcons`
+  (`getShowEditIcons`/`setShowEditIcons` in `store.js`), Default `true`.
+- Unabhängig davon blendet die Druckansicht (Punkt 15) dieselben Symbole *immer* aus,
+  unabhängig vom aktuellen Toggle-Zustand — Druck soll nie interaktive UI zeigen.
+
+### 17. Responsives Layout & Mobile
+
+- Die Tabelle nutzt `table-layout: fixed` statt `auto`: Bei automatischem Layout bestimmen
+  Formularelemente (das Zeit-`<input>`) ihre natürliche/intrinsische Breite und ignorieren
+  dabei kleine `min-width`-Vorgaben weitgehend — das trieb die Zeitspalte auf über 220px
+  Breite hoch, obwohl nur ~90px vorgesehen waren. Mit `table-layout: fixed` bestimmt die
+  deklarierte Breite der Zeitspalte direkt die Spaltenbreite; Tagesspalten ohne eigene
+  `width`-Angabe teilen sich den verbleibenden Platz automatisch gleichmäßig — bei
+  beliebiger Spaltenzahl, nicht nur den ursprünglichen 7.
+- Ergebnis: Die initiale 7-Tage-Ansicht braucht auf Tablet-Breite (≥ 768px) und größer kein
+  horizontales Scrollen mehr (vorher: hartes `min-width: 920px` auf der Tabelle, erzwang
+  Scrollen schon ab knapp 950px Fensterbreite). Das umfasst auch alle gängigen
+  Smartphone-Querformat-Breiten (getestet 667–926px) — deckt damit einen praktisch
+  relevanten Teil des "Mobile Landscape"-Falls ab.
+- Ein `min-width: 600px` auf der Tabelle bleibt als Untergrenze: darunter (z. B.
+  Smartphone-Hochformat, ~375–430px) scrollt `.table-wrap` horizontal statt Spalten
+  weiter zusammenzudrücken — 7+ Spalten lassen sich auf Hochformat-Handybreite nicht
+  verlustfrei ohne Scrollen darstellen ("sofern möglich" heißt hier: möglich ab Tablet
+  aufwärts, nicht bei jeder Bildschirmgröße).
+- Tages-Spaltennamen dürfen umbrechen (`white-space: normal; overflow-wrap: anywhere`)
+  statt eine einzelne Zeile zu erzwingen — wichtig, weil Spaltennamen jetzt frei umbenennbar
+  sind (Punkt 1a) und beliebig lang sein können.
+- Modals haben `max-height: 90vh` mit `overflow-y: auto`: Auf kurzen Viewports (z. B.
+  Smartphone im Querformat, ~375–400px Höhe) würde ein nicht begrenztes Modal über den
+  sichtbaren Bereich hinausragen und Buttons (Speichern, Abbrechen) unerreichbar machen.
+  Mit der Begrenzung wird das Modal stattdessen intern scrollbar; alle Felder und Buttons
+  bleiben erreichbar.
+- Bewusst **nicht** umgesetzt: eine responsive Anpassung der festen Zeilenhöhe (70px,
+  siehe Punkt 5 — `ROW_HEIGHT_PX` in `app.js`). Eine kleinere mobile Zeilenhöhe würde mit
+  der Pixel-Berechnung für Sub-Raster-Einrückung kollidieren, sofern `ROW_HEIGHT_PX` nicht
+  ebenfalls dynamisch aus dem tatsächlich gerenderten Wert gelesen würde — als bewusst
+  einfach gehaltene Abwägung vorerst nicht angegangen.
+
 ## Bewusste Nicht-Ziele (damit sie in einem Rewrite nicht versehentlich neu diskutiert werden)
 
 - Kein Build-Tooling (Webpack/Vite/Bundler) für die App — bewusst bei reinen, direkt
@@ -293,3 +361,7 @@ Anwenden eines Presets/Rasters:
   wäre dafür erweiterbar, aber es gibt noch keine dritte Zielsprache.
 - Kein eigener Zeit-Picker für `<input type="time">` — Browser-native 12h/24h-Darstellung
   wird akzeptiert statt nachgebaut (siehe Punkt 12).
+- Keine responsive Anpassung der festen 70px-Zeilenhöhe — würde die Pixel-Berechnung der
+  Sub-Raster-Einrückung verkomplizieren (siehe Punkt 17).
+- Kein automatisches Ausblenden leerer Zeilen in der Druckansicht — Druck zeigt exakt den
+  Bildschirminhalt minus Bedienelemente, keine zusätzliche Content-Filterung (siehe Punkt 15).

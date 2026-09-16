@@ -72,6 +72,9 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
         if (!LANGUAGES.includes(parsed.language)) {
           parsed.language = defaultLanguage;
         }
+        if (typeof parsed.showEditIcons !== "boolean") {
+          parsed.showEditIcons = true;
+        }
         Object.values(parsed.plans).forEach((plan) => normalizePlan(plan, parsed.language));
         return parsed;
       }
@@ -83,6 +86,7 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
   const initialPlan = normalizePlan(migrateLegacyState(storage, defaultLanguage) || createEmptyPlan(undefined, defaultLanguage), defaultLanguage);
   return {
     language: defaultLanguage,
+    showEditIcons: true,
     activePlanId: initialPlan.id,
     planOrder: [initialPlan.id],
     plans: { [initialPlan.id]: initialPlan },
@@ -103,6 +107,15 @@ export function getLanguage(store) {
 
 export function setLanguage(store, language) {
   if (LANGUAGES.includes(language)) store.language = language;
+  return store;
+}
+
+export function getShowEditIcons(store) {
+  return typeof store.showEditIcons === "boolean" ? store.showEditIcons : true;
+}
+
+export function setShowEditIcons(store, show) {
+  store.showEditIcons = Boolean(show);
   return store;
 }
 
