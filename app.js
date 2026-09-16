@@ -1,3 +1,12 @@
+import {
+  cellKey,
+  generateRasterTimes,
+  TIME_PRESETS,
+  computeEntryUpdate,
+  mergeTimes,
+  requiredRowCount,
+} from "./logic.js";
+
 (() => {
   const STORAGE_KEY = "stundenplan-data-v1";
 
@@ -30,6 +39,14 @@
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
 
+  const timePresetBtn = document.getElementById("timePresetBtn");
+  const timeModalOverlay = document.getElementById("timeModalOverlay");
+  const cancelTimeModalBtn = document.getElementById("cancelTimeModalBtn");
+  const applyRasterBtn = document.getElementById("applyRasterBtn");
+  const rasterInterval = document.getElementById("rasterInterval");
+  const rasterStart = document.getElementById("rasterStart");
+  const rasterEnd = document.getElementById("rasterEnd");
+
   let activeCellKey = null;
 
   function loadState() {
@@ -57,10 +74,6 @@
     } catch (e) {
       console.warn("Konnte Stundenplan nicht speichern:", e);
     }
-  }
-
-  function cellKey(row, day) {
-    return `${row}_${day}`;
   }
 
   function renderHeader() {
@@ -166,14 +179,12 @@
 
   function saveEntry() {
     if (!activeCellKey) return;
-    const title = fieldTitle.value.trim();
-    const description = fieldDescription.value.trim();
-    const link = fieldLink.value.trim();
+    const update = computeEntryUpdate(fieldTitle.value, fieldDescription.value, fieldLink.value);
 
-    if (!title) {
+    if (!update) {
       delete state.entries[activeCellKey];
     } else {
-      state.entries[activeCellKey] = { title, description, link };
+      state.entries[activeCellKey] = update;
     }
 
     saveState();
@@ -204,6 +215,29 @@
     renderBody();
   }
 
+  function openTimeModal() {
+    timeModalOverlay.classList.remove("hidden");
+  }
+
+  function closeTimeModal() {
+    timeModalOverlay.classList.add("hidden");
+  }
+
+  function applyTimes(newTimes) {
+    if (newTimes.length === 0) return;
+
+    const hasConflict = newTimes.some((t, i) => state.times[i] && state.times[i] !== t);
+    if (hasConflict && !confirm("Bestehende Zeit-Labels werden überschrieben. Fortfahren?")) {
+      return;
+    }
+
+    state.rowCount = requiredRowCount(state.rowCount, newTimes.length);
+    state.times = mergeTimes(state.times, newTimes);
+    saveState();
+    renderBody();
+    closeTimeModal();
+  }
+
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
   saveEntryBtn.addEventListener("click", saveEntry);
@@ -212,10 +246,31 @@
   modalOverlay.addEventListener("click", (e) => {
     if (e.target === modalOverlay) closeModal();
   });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !modalOverlay.classList.contains("hidden")) {
-      closeModal();
+
+  timePresetBtn.addEventListener("click", openTimeModal);
+  cancelTimeModalBtn.addEventListener("click", closeTimeModal);
+  timeModalOverlay.addEventListener("click", (e) => {
+    if (e.target === timeModalOverlay) closeTimeModal();
+  });
+  document.querySelectorAll(".preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const preset = TIME_PRESETS[btn.dataset.preset];
+      if (preset) applyTimes(preset.times);
+    });
+  });
+  applyRasterBtn.addEventListener("click", () => {
+    try {
+      const times = generateRasterTimes(rasterInterval.value, rasterStart.value, rasterEnd.value);
+      applyTimes(times);
+    } catch (err) {
+      alert(err.message);
     }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!modalOverlay.classList.contains("hidden")) closeModal();
+    if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
   });
 
   renderHeader();
