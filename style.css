@@ -278,6 +278,52 @@ tbody td {
   gap: 10px;
 }
 
+.modal-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: -6px 0 16px;
+}
+
+.preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.preset-btn {
+  flex: 1 1 auto;
+}
+
+.modal-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 0 16px;
+}
+
+.field-group-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.raster-inputs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.field-inline {
+  flex: 1 1 0;
+  margin-bottom: 0;
+}
+
+.field-inline input {
+  text-align: center;
+}
+
 @media (max-width: 600px) {
   .app-header {
     flex-direction: column;

@@ -10,6 +10,7 @@
   <header class="app-header">
     <h1>Mein Stundenplan</h1>
     <div class="app-actions">
+      <button id="timePresetBtn" class="btn btn-secondary">Zeiten festlegen</button>
       <button id="addRowBtn" class="btn">+ Zeile hinzufügen</button>
       <button id="resetBtn" class="btn btn-secondary">Zurücksetzen</button>
     </div>
@@ -57,6 +58,47 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Modal for setting the time grid -->
+  <div id="timeModalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Zeitraster festlegen</h2>
+      <p class="modal-hint">
+        Vorlage wählen oder eigenes Raster erstellen. Einträge bleiben erhalten, es werden nur die Zeit-Labels gesetzt.
+      </p>
+
+      <div class="preset-list">
+        <button type="button" class="btn btn-secondary preset-btn" data-preset="tu-dresden">TU Dresden (Doppelstunden)</button>
+        <button type="button" class="btn btn-secondary preset-btn" data-preset="rwth-aachen">RWTH Aachen (Blockraster)</button>
+      </div>
+
+      <hr class="modal-divider" />
+
+      <span class="field-group-label">Eigenes Raster</span>
+      <div class="raster-inputs">
+        <label class="field field-inline">
+          <span>Intervall (Std.)</span>
+          <input type="number" id="rasterInterval" min="0.5" step="0.5" value="2" />
+        </label>
+        <label class="field field-inline">
+          <span>Von (Uhr)</span>
+          <input type="number" id="rasterStart" min="0" max="23" step="1" value="6" />
+        </label>
+        <label class="field field-inline">
+          <span>Bis (Uhr)</span>
+          <input type="number" id="rasterEnd" min="1" max="24" step="1" value="18" />
+        </label>
+      </div>
+      <button type="button" id="applyRasterBtn" class="btn">Raster anwenden</button>
+
+      <div class="modal-actions">
+        <div></div>
+        <div class="modal-actions-right">
+          <button id="cancelTimeModalBtn" class="btn btn-secondary">Schließen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
