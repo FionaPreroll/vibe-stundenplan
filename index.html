@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stundenplan</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Mein Stundenplan</h1>
+    <div class="app-actions">
+      <button id="addRowBtn" class="btn">+ Zeile hinzufügen</button>
+      <button id="resetBtn" class="btn btn-secondary">Zurücksetzen</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="table-wrap">
+      <table id="planTable">
+        <thead>
+          <tr id="headerRow">
+            <th class="time-col">Zeit</th>
+            <!-- day headers injected by JS -->
+          </tr>
+        </thead>
+        <tbody id="planBody">
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Modal for editing a cell -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="modalTitleHeading">Termin bearbeiten</h2>
+      <label class="field">
+        <span>Titel</span>
+        <input type="text" id="fieldTitle" placeholder="z. B. Mathe lernen" maxlength="80" />
+      </label>
+      <label class="field">
+        <span>Beschreibung</span>
+        <textarea id="fieldDescription" placeholder="Details zur Aufgabe..." rows="4" maxlength="500"></textarea>
+      </label>
+      <label class="field">
+        <span>Link</span>
+        <input type="url" id="fieldLink" placeholder="https://..." />
+      </label>
+      <div class="modal-actions">
+        <button id="deleteEntryBtn" class="btn btn-danger">Löschen</button>
+        <div class="modal-actions-right">
+          <button id="cancelModalBtn" class="btn btn-secondary">Abbrechen</button>
+          <button id="saveEntryBtn" class="btn">Speichern</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
