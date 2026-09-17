@@ -85,6 +85,17 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: "en-US" });
   page.on("dialog", (d) => d.accept());
 
+  // Freezes "now" (app.js's now-highlight, item 11) to a fixed Wednesday
+  // 13:00 rather than whatever real time this happens to run at — both
+  // example plans below have an entry sitting in that exact slot (the
+  // university plan's Wednesday "Sports", 13:00-14:00; the German plan's
+  // Wednesday "Mittagessen mit Oma", 12:00-14:00), so the highlighted
+  // row/day-column/cell in the screenshots is always that entry instead of
+  // shifting — or vanishing outside opening hours — depending on when CI
+  // happens to regenerate them. Local-time Date constructor, so this lands
+  // on Wednesday 13:00 regardless of the machine's own timezone.
+  await page.clock.setFixedTime(new Date(2024, 0, 3, 13, 0, 0));
+
   await page.goto(`http://localhost:${PORT}/index.html`);
   await page.waitForSelector("#planTable");
 

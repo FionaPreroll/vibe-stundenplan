@@ -286,6 +286,12 @@ Applying a preset/grid:
   (`scripts/screenshots.js`, drives the app via Playwright with example content and
   photographs the main view + both modals) and commits them back with `[skip ci]` if they
   changed.
+- The script freezes the page's clock (Playwright's `page.clock.setFixedTime`) to a fixed
+  Wednesday 13:00 before navigating, so the now-highlight (item 11) always lands on the same
+  entry in both example plans (the university plan's Wednesday "Sports", the German plan's
+  Wednesday "Mittagessen mit Oma") — deterministic across runs, instead of depending on
+  whatever real day/time CI happens to run at (and vanishing outside both examples' entries
+  most of the time).
 - That's the only place in the project with a real npm runtime dependency (Playwright,
   devDependency) — affects only this tooling, never the app code itself (see "Technical
   constraints" above).
