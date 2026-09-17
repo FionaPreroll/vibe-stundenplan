@@ -14,6 +14,11 @@ test("time column stays pinned to the left during horizontal scroll on narrow sc
   await page.goto("/index.html");
   await page.waitForSelector("#planTable");
 
+  // A brand-new visitor's store starts locked (the first-run demo plan,
+  // REQUIREMENTS.md item 30) — unlock before interacting with the grid,
+  // same as a real user would via the lock icon.
+  await page.click("#editLockBtn");
+
   // Add day columns until the table needs to scroll horizontally at 380px
   // (the default 7 columns already exceed the table's 600px min-width, but
   // a couple more make the scroll distance comfortably large).

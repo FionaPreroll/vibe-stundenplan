@@ -737,6 +737,29 @@ Applying a preset/grid:
   `print-color-adjust: exact` rule for `.data-cell.filled .entry-box`, which a colored entry
   still matches).
 
+### 30. First-run demo plan
+
+- **Trigger:** a brand-new visitor's very first plan was completely blank — no sense of what
+  the app actually looks like filled in, or that a lock icon governs anything, before they've
+  put in any of their own data.
+- **Only for a genuinely first-ever visit** — neither the current store key nor the old
+  pre-multi-plan legacy key has ever been written to this browser's `localStorage` at all.
+  Migrating an existing legacy single-plan value (even a corrupted/unreadable one) is still a
+  *returning* user and never gets the demo — that path keeps falling back to a genuinely empty,
+  unlocked plan exactly as before this item.
+- That one plan gets a small time raster and three example entries (`applyDemoContent` in
+  `store.js`) instead of starting empty, and the whole store starts **locked** (item 22) —
+  reads as "here's an example" to look at first, not an already-half-filled-in plan of their
+  own to worry about accidentally editing.
+- **The onboarding hint lives in the first entry's own description** ("Tap 🔒 above to edit it
+  or start a new, empty schedule"), visible directly in the grid cell without needing to open
+  anything — locked mode blocks cell clicks entirely (item 22), so a hint hidden behind a click
+  would never be seen. Clicking the lock icon itself still works while locked (it's the one way
+  out), which reveals the "+" new-plan button afterwards, exactly matching what the hint says.
+- Once unlocked, the demo plan is a completely ordinary, fully editable plan — nothing about it
+  is special beyond its starting content; overwriting or deleting the demo entries works exactly
+  like any other plan's.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
