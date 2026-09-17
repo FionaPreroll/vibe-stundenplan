@@ -86,6 +86,9 @@ const STRINGS = {
     fieldDescriptionLabel: "Beschreibung",
     fieldDescriptionPlaceholder: "Details zur Aufgabe...",
     fieldLinkLabel: "Link",
+    applyAllDaysLabel: "Auf alle Tage anwenden",
+    fieldColorLabel: "Farbe",
+    colorNoneTitle: "Keine Farbe",
     deleteEntryBtn: "Löschen",
     cancelBtn: "Abbrechen",
     saveBtn: "Speichern",
@@ -97,6 +100,8 @@ const STRINGS = {
     undoToast: "Rückgängig gemacht",
     copyToast: "Termin kopiert",
     pasteToast: "Eingefügt",
+    dragOverwriteToastOne: '"{title}" wurde ersetzt',
+    dragOverwriteToastMany: "{count} Termine wurden ersetzt",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -130,6 +135,12 @@ const STRINGS = {
     newPlanName: "Neuer Plan",
     newDayName: "Tag",
     importedPlanName: "Importierter Plan",
+
+    demoEntry1Title: "👋 Willkommen!",
+    demoEntry1Description: "Das ist ein Beispiel. 🔒 oben anklicken zum Bearbeiten oder um einen neuen, leeren Plan zu starten.",
+    demoEntry2Title: "Sport",
+    demoEntry3Title: "Projektarbeit",
+    demoEntry3Description: "Gruppenarbeit im Labor",
   },
   en: {
     appTitleSuffix: "Schedule",
@@ -179,6 +190,9 @@ const STRINGS = {
     fieldDescriptionLabel: "Description",
     fieldDescriptionPlaceholder: "Details about the task...",
     fieldLinkLabel: "Link",
+    applyAllDaysLabel: "Apply to all days",
+    fieldColorLabel: "Color",
+    colorNoneTitle: "No color",
     deleteEntryBtn: "Delete",
     cancelBtn: "Cancel",
     saveBtn: "Save",
@@ -190,6 +204,8 @@ const STRINGS = {
     undoToast: "Undone",
     copyToast: "Entry copied",
     pasteToast: "Pasted",
+    dragOverwriteToastOne: '"{title}" replaced',
+    dragOverwriteToastMany: "{count} entries replaced",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",
@@ -222,6 +238,12 @@ const STRINGS = {
     newPlanName: "New Schedule",
     newDayName: "Day",
     importedPlanName: "Imported Schedule",
+
+    demoEntry1Title: "👋 Welcome!",
+    demoEntry1Description: "This is a demo. Tap 🔒 above to edit it or start a new, empty schedule.",
+    demoEntry2Title: "Gym",
+    demoEntry3Title: "Project work",
+    demoEntry3Description: "Group work in the lab",
   },
 };
 

@@ -104,9 +104,10 @@ export const TIME_PRESETS = {
 
 // startTime/endTime are optional "HH:MM" strings for the entry's actual
 // start/end, independent of the raster row(s) it occupies (see
-// computeSubRangeInset). Omitted from the result when blank, so plain
-// entries stay free of the extra fields.
-export function computeEntryUpdate(title, description, link, startTime, endTime) {
+// computeSubRangeInset). color is an optional CSS color string (one of the
+// app's rainbow swatches) picked in the entry modal. Both omitted from the
+// result when blank/unset, so plain entries stay free of the extra fields.
+export function computeEntryUpdate(title, description, link, startTime, endTime, color) {
   const trimmedTitle = title.trim();
   if (!trimmedTitle) return null;
   const update = {
@@ -118,6 +119,8 @@ export function computeEntryUpdate(title, description, link, startTime, endTime)
   const et = (endTime || "").trim();
   if (st) update.startTime = st;
   if (et) update.endTime = et;
+  const c = (color || "").trim();
+  if (c) update.color = c;
   return update;
 }
 
@@ -222,6 +225,24 @@ export function findOverlappingKeys(entries, day, rowStart, rowEnd) {
     if (entryEnd >= rowStart && row <= rowEnd) keys.push(key);
   }
   return keys;
+}
+
+// Applies the same new entry to the same row range across every day column
+// at once (the "apply to all days" checkbox when creating an entry) — e.g.
+// a lunch break set once instead of dragged/duplicated into each column by
+// hand. Same overwrite rule as a normal single-day save: any different
+// entry a given day's range now overlaps is replaced, independently per
+// day (so one day already having something there doesn't block the rest).
+export function applyEntryToAllDays(entries, days, rowStart, rowEnd, update) {
+  const span = rowEnd - rowStart + 1;
+  const result = { ...entries };
+  for (const day of days) {
+    for (const key of findOverlappingKeys(result, day, rowStart, rowEnd)) {
+      delete result[key];
+    }
+    result[cellKey(rowStart, day)] = span > 1 ? { ...update, span } : update;
+  }
+  return result;
 }
 
 // --- Moving an existing entry (drag & drop) -------------------------------

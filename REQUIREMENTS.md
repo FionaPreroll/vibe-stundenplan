@@ -654,6 +654,10 @@ Applying a preset/grid:
   any different entry the destination range now overlaps is silently removed, exactly like
   dragging a new selection over one already does on save — a drag-move isn't treated as a more
   dangerous action needing its own extra confirmation than the create flow already doesn't have.
+  "Silently" only means no confirmation prompt, not no feedback at all: a brief toast ("'X'
+  replaced", or "N entries replaced" for the rare case of more than one) confirms it happened,
+  via the same `showToast()` helper item 28's undo confirmation uses — the drop already fully
+  completed by the time it shows, undo is how to walk it back, not a blocking prompt beforehand.
 - **A drop back on the entry's own starting cell is a no-op move** — treated the same as a plain
   click with no drag: it opens the entry for editing, rather than silently doing nothing with no
   feedback.
@@ -715,7 +719,69 @@ Applying a preset/grid:
 - A brief toast ("Undone"/"Rückgängig gemacht") confirms an undo fired — the same reusable
   `#toast` element/`showToast()` helper other brief, non-blocking feedback (e.g. item 28) uses.
 
-### 29. Duplicating an entry (copy/paste)
+### 29. Per-entry color
+
+- **Trigger:** every entry used the same neutral accent-tinted background — no way to visually
+  group or distinguish entries at a glance (e.g. color-coding by subject or by type of
+  activity), only the day column's own (fixed, one-per-column) rainbow color.
+- **Reuses the app's own rainbow hues** (`--day-1..7`, the same ones used for day headers)
+  as the selectable palette, plus a "no color" option — a picker of small circular swatch
+  buttons in the entry modal, rather than a separate custom palette or a native
+  `<input type="color">` (inconsistent-looking popup across browsers/platforms, and full color
+  freedom isn't the point — staying visually consistent with the rest of the app is). Selecting
+  a swatch and saving stores that hex string directly on the entry (`color`); "no color" clears
+  it. Optional field, omitted from `entries` entirely when unset (see EXPORT_FORMAT.md).
+- **Rendered as a stronger color-mix tint than the default neutral background** (22%/30% on
+  hover vs. the default's 6%/10%) — needs to actually read as "this entry's color" against the
+  surface, not just a barely-visible hint of it — but still computed as `color-mix(in srgb,
+  <hue> <percent>, var(--surface))`, the same formula the existing neutral background and the
+  "now" highlight already use, so it keeps adapting automatically between light and dark mode
+  instead of needing its own light/dark value pair per hue.
+- Printed like any other filled cell background (already covered by the existing
+  `print-color-adjust: exact` rule for `.data-cell.filled .entry-box`, which a colored entry
+  still matches).
+
+### 30. First-run demo plan
+
+- **Trigger:** a brand-new visitor's very first plan was completely blank — no sense of what
+  the app actually looks like filled in, or that a lock icon governs anything, before they've
+  put in any of their own data.
+- **Only for a genuinely first-ever visit** — neither the current store key nor the old
+  pre-multi-plan legacy key has ever been written to this browser's `localStorage` at all.
+  Migrating an existing legacy single-plan value (even a corrupted/unreadable one) is still a
+  *returning* user and never gets the demo — that path keeps falling back to a genuinely empty,
+  unlocked plan exactly as before this item.
+- That one plan gets a small time raster and three example entries (`applyDemoContent` in
+  `store.js`) instead of starting empty, and the whole store starts **locked** (item 22) —
+  reads as "here's an example" to look at first, not an already-half-filled-in plan of their
+  own to worry about accidentally editing.
+- **The onboarding hint lives in the first entry's own description** ("Tap 🔒 above to edit it
+  or start a new, empty schedule"), visible directly in the grid cell without needing to open
+  anything — locked mode blocks cell clicks entirely (item 22), so a hint hidden behind a click
+  would never be seen. Clicking the lock icon itself still works while locked (it's the one way
+  out), which reveals the "+" new-plan button afterwards, exactly matching what the hint says.
+- Once unlocked, the demo plan is a completely ordinary, fully editable plan — nothing about it
+  is special beyond its starting content; overwriting or deleting the demo entries works exactly
+  like any other plan's.
+
+### 31. "Apply to all days" when creating an entry
+
+- **Trigger:** a recurring same-time entry across the whole week (e.g. a daily lunch break)
+  needed dragging or duplicating into every day column by hand, one at a time.
+- A checkbox in the entry modal, **shown only when creating a brand-new entry** (not when
+  editing an existing one — that already has its own single day/range, and "apply to all days"
+  isn't a meaningful action on top of an edit). Reset to unchecked every time the modal opens,
+  so it never silently carries over from a previous save.
+- When checked and saved, the same entry content (title, description, link, start/end time,
+  color, span) is written to the same row range in **every** day column of the plan at once
+  (`applyEntryToAllDays` in `logic.js`), not just the one the cell was clicked in.
+- **Overwrite rule applies independently per day**, same as a normal single-day save: any
+  different entry a given day's range now overlaps is replaced in that day only — one day
+  already having something there doesn't block or skip the rest.
+- Works for a multi-row range too (dragging across several time slots before opening the modal,
+  item 4): the same span is applied to every day.
+
+### 32. Duplicating an entry (copy/paste)
 
 - **Trigger:** recreating a similar entry elsewhere (same title/description/link/time, different
   cell) meant retyping everything by hand — drag-to-move (item 26) relocates an entry but can't

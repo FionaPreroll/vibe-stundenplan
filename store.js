@@ -1,4 +1,4 @@
-import { codedError } from "./logic.js";
+import { codedError, cellKey, TIME_PRESETS } from "./logic.js";
 import { LANGUAGES, DEFAULT_LANGUAGE, DAYS_BY_LANGUAGE, translate } from "./i18n.js";
 
 const STORE_KEY = "stundenplan-store-v1"; // also duplicated in index.html's inline pre-paint theme script — keep in sync
@@ -28,6 +28,31 @@ export function createEmptyPlan(name, language = DEFAULT_LANGUAGE) {
     columnWidths: {},
     timeColWidth: null,
   };
+}
+
+// Only used for the very first plan a brand-new visitor ever sees (loadStore's
+// fresh-store branch below) — everywhere else (the "+" new plan button,
+// import) a fresh plan is still genuinely empty. Gives someone something to
+// look at and click around before committing to building their own plan;
+// the first entry's description carries the "how do I edit this" hint,
+// since the demo plan starts locked (view-only) — see loadStore.
+function applyDemoContent(plan, language) {
+  plan.times = TIME_PRESETS["rwth-aachen"].times.slice(0, 3);
+  const days = plan.days;
+  plan.entries = {
+    [cellKey(0, days[0])]: {
+      title: translate(language, "demoEntry1Title"),
+      description: translate(language, "demoEntry1Description"),
+    },
+    [cellKey(1, days[2])]: {
+      title: translate(language, "demoEntry2Title"),
+    },
+    [cellKey(2, days[4])]: {
+      title: translate(language, "demoEntry3Title"),
+      description: translate(language, "demoEntry3Description"),
+    },
+  };
+  return plan;
 }
 
 // Reads the single-plan format used before multi-plan support existed, so
@@ -106,11 +131,28 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
     console.warn("Konnte Stundenplan-Store nicht laden:", e);
   }
 
-  const initialPlan = normalizePlan(migrateLegacyState(storage, defaultLanguage) || createEmptyPlan(undefined, defaultLanguage), defaultLanguage);
+  // A genuinely brand-new visitor (neither key ever written) gets a demo
+  // plan to look at instead of a blank one, starting locked so it reads as
+  // "here's an example" rather than an already-half-filled-in plan of
+  // their own. A pre-existing legacy value being unreadable/corrupt still
+  // means a *returning* user, who shouldn't be shown a demo pretending to
+  // be new — that path (via migrateLegacyState returning null) keeps
+  // falling back to a genuinely empty plan, unlocked, same as before.
+  let legacyRaw = null;
+  try {
+    legacyRaw = storage.getItem(LEGACY_KEY);
+  } catch {
+    legacyRaw = null;
+  }
+  const isFreshVisitor = !legacyRaw;
+  const legacyPlan = legacyRaw ? migrateLegacyState(storage, defaultLanguage) : null;
+  const initialPlan = normalizePlan(legacyPlan || createEmptyPlan(undefined, defaultLanguage), defaultLanguage);
+  if (isFreshVisitor) applyDemoContent(initialPlan, defaultLanguage);
+
   return {
     language: defaultLanguage,
     showEditIcons: true,
-    editLocked: false,
+    editLocked: isFreshVisitor,
     theme: "system",
     activePlanId: initialPlan.id,
     planOrder: [initialPlan.id],

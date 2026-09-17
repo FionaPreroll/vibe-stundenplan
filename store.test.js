@@ -65,6 +65,31 @@ test("loadStore uses the given default language for a fresh store", () => {
   assert.equal(getActivePlan(store).name, "My Schedule");
 });
 
+test("loadStore gives a genuinely brand-new visitor a locked demo plan with entries", () => {
+  const store = loadStore(createMemoryStorage());
+  const plan = getActivePlan(store);
+  assert.equal(getEditLocked(store), true);
+  assert.ok(Object.keys(plan.entries).length > 0);
+  assert.ok(plan.times.length > 0);
+  // The first entry (row 0 of the first day column) carries the onboarding
+  // hint, and it must actually say something (not silently fall back to
+  // its own translation key because a string is missing).
+  const firstEntry = plan.entries[`0_${plan.days[0]}`];
+  assert.ok(firstEntry);
+  assert.ok(firstEntry.title.length > 0);
+  assert.ok(firstEntry.description.length > 0);
+  assert.notEqual(firstEntry.description, "demoEntry1Description");
+});
+
+test("loadStore does not demo/lock a plan migrated from the legacy single-plan format", () => {
+  const storage = createMemoryStorage({
+    "stundenplan-data-v1": JSON.stringify({ rowCount: 5, times: [], entries: {} }),
+  });
+  const store = loadStore(storage);
+  assert.equal(getEditLocked(store), false);
+  assert.deepEqual(getActivePlan(store).entries, {});
+});
+
 test("loadStore returns a previously saved multi-plan store unchanged", () => {
   const storage = createMemoryStorage();
   const store = loadStore(storage);
@@ -164,8 +189,12 @@ test("loadStore defaults showEditIcons to true for an older store without that f
   assert.equal(getShowEditIcons(reloaded), true);
 });
 
-test("getEditLocked/setEditLocked default to false and coerce to boolean", () => {
+test("getEditLocked/setEditLocked coerce to boolean", () => {
+  // A brand-new store starts locked (the first-run demo plan, see below) —
+  // this test is about setEditLocked's own coercion, not that default, so
+  // it starts from an explicit false rather than assuming loadStore's.
   const store = loadStore(createMemoryStorage());
+  setEditLocked(store, false);
   assert.equal(getEditLocked(store), false);
   setEditLocked(store, true);
   assert.equal(getEditLocked(store), true);

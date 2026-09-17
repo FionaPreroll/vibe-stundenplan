@@ -12,6 +12,7 @@ import {
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  applyEntryToAllDays,
   moveEntry,
   rowHasEntries,
   removeRow,
@@ -101,6 +102,9 @@ import {
   const timeHint = document.getElementById("timeHint");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
+  const applyAllDaysField = document.getElementById("applyAllDaysField");
+  const applyAllDaysCheckbox = document.getElementById("applyAllDaysCheckbox");
+  const colorSwatchesEl = document.getElementById("colorSwatches");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
 
@@ -186,6 +190,45 @@ import {
     return colors.length ? colors : ["#8fb8ff"];
   }
   const RAINBOW = rainbowPalette();
+
+  // --- Per-entry color ------------------------------------------------------
+
+  // Entries can be tinted with one of the app's own rainbow hues (the same
+  // ones already used for day headers) instead of inventing a separate
+  // palette — keeps the visual language consistent and needs no color
+  // picker UI. Swatches are built once (static content); "selected" state
+  // just tracks which one is currently active while the modal is open.
+  let selectedEntryColor = ""; // "" = no color (the default, neutral look)
+
+  function buildColorSwatches() {
+    colorSwatchesEl.innerHTML = "";
+
+    const noneBtn = document.createElement("button");
+    noneBtn.type = "button";
+    noneBtn.className = "color-swatch color-swatch-none";
+    noneBtn.dataset.color = "";
+    noneBtn.dataset.i18nTitle = "colorNoneTitle";
+    noneBtn.dataset.i18nAriaLabel = "colorNoneTitle";
+    noneBtn.addEventListener("click", () => selectEntryColor(""));
+    colorSwatchesEl.appendChild(noneBtn);
+
+    RAINBOW.forEach((color) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "color-swatch";
+      btn.style.background = color;
+      btn.dataset.color = color;
+      btn.addEventListener("click", () => selectEntryColor(color));
+      colorSwatchesEl.appendChild(btn);
+    });
+  }
+
+  function selectEntryColor(color) {
+    selectedEntryColor = color;
+    colorSwatchesEl.querySelectorAll(".color-swatch").forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.color === color);
+    });
+  }
 
   // Only a still-default weekday name (exact match against the current
   // language's defaults, same rule translateDefaultDayNames uses) has a
@@ -459,6 +502,11 @@ import {
         copyEntry(entry);
       });
       entryBox.appendChild(copyBtn);
+
+      if (entry.color) {
+        td.classList.add("has-color");
+        td.style.setProperty("--entry-hue", entry.color);
+      }
 
       if (entry.startTime || entry.endTime) {
         const badge = document.createElement("p");
@@ -845,10 +893,30 @@ import {
       }
       return;
     }
+    // Mirrors moveEntry's own clamping/overlap logic (logic.js) just to
+    // find out, before the move happens, whether it's about to silently
+    // replace a different entry — moveEntry itself doesn't report that,
+    // it just does it (same overwrite rule as any other save, item 4).
+    const fromKey = cellKey(anchorRow, day);
+    const movingEntry = p.entries[fromKey];
+    const span = getEntrySpan(movingEntry);
+    const clampedRow = Math.max(0, Math.min(currentRow, p.rowCount - span));
+    const entriesWithoutSource = { ...p.entries };
+    delete entriesWithoutSource[fromKey];
+    const overwrittenTitles = findOverlappingKeys(entriesWithoutSource, currentDay, clampedRow, clampedRow + span - 1)
+      .map((k) => entriesWithoutSource[k].title)
+      .filter(Boolean);
+
     snapshotForUndo();
     p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
     persist();
     renderBody();
+
+    if (overwrittenTitles.length === 1) {
+      showToast(t("dragOverwriteToastOne", { title: overwrittenTitles[0] }));
+    } else if (overwrittenTitles.length > 1) {
+      showToast(t("dragOverwriteToastMany", { count: overwrittenTitles.length }));
+    }
   }
 
   function finalizeSelection(day, anchorRow, currentRow) {
@@ -956,6 +1024,12 @@ import {
     fieldEndTime.value = entry?.endTime || "";
     fieldDescription.value = entry?.description || "";
     fieldLink.value = entry?.link || "";
+    // Only meaningful when creating a brand-new entry — editing an existing
+    // one already has its own day/range, propagating it to every column
+    // isn't what this checkbox is for.
+    applyAllDaysField.style.display = isNewRange ? "flex" : "none";
+    applyAllDaysCheckbox.checked = false;
+    selectEntryColor(entry?.color || "");
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
     modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
     modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
@@ -979,9 +1053,18 @@ import {
       fieldDescription.value,
       fieldLink.value,
       fieldStartTime.value,
-      fieldEndTime.value
+      fieldEndTime.value,
+      selectedEntryColor
     );
     const anchorKey = cellKey(rowStart, day);
+
+    if (update && isNewRange && applyAllDaysCheckbox.checked) {
+      p.entries = applyEntryToAllDays(p.entries, p.days, rowStart, rowEnd, update);
+      persist();
+      renderBody();
+      closeModal();
+      return;
+    }
 
     if (isNewRange) {
       findOverlappingKeys(p.entries, day, rowStart, rowEnd).forEach((k) => delete p.entries[k]);
@@ -1468,5 +1551,6 @@ import {
     }
   });
 
+  buildColorSwatches();
   renderAll();
 })();

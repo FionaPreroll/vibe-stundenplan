@@ -112,6 +112,13 @@
           <span data-i18n="fieldTitleLabel"></span>
           <input type="text" id="fieldTitle" maxlength="80" autofocus data-i18n-placeholder="fieldTitlePlaceholder" />
         </label>
+        <div class="field">
+          <span data-i18n="fieldColorLabel"></span>
+          <!-- Swatch buttons injected by app.js's buildColorSwatches(), one
+               per rainbow hue plus a "no color" option — kept in sync with
+               the same --day-1..7 palette used for day headers. -->
+          <div class="color-swatches" id="colorSwatches" role="radiogroup" data-i18n-aria-label="fieldColorLabel"></div>
+        </div>
         <div class="raster-inputs">
           <label class="field field-inline">
             <span data-i18n="fieldStartLabel"></span>
@@ -123,6 +130,13 @@
           </label>
         </div>
         <p id="timeHint" class="modal-hint time-hint"></p>
+        <!-- Only shown/relevant when creating a brand-new entry (see
+             openEntryModal in app.js) — applying an already-existing entry
+             to every day isn't this checkbox's job. -->
+        <label class="field field-checkbox" id="applyAllDaysField">
+          <input type="checkbox" id="applyAllDaysCheckbox" />
+          <span data-i18n="applyAllDaysLabel"></span>
+        </label>
         <label class="field">
           <span data-i18n="fieldDescriptionLabel"></span>
           <textarea id="fieldDescription" rows="4" maxlength="500" data-i18n-placeholder="fieldDescriptionPlaceholder"></textarea>
