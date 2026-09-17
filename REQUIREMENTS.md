@@ -591,7 +591,7 @@ Applying a preset/grid:
   (`z-index: 3`) so the header row still covers it while scrolled down, and both sit below
   `.time-col` (`z-index: 4`), the corner cell frozen in both directions, which has to stay on
   top of both the frozen row and the frozen column it's the intersection of.
-- **Known bug this shipped with, still open:** the very first manual verification of this
+- **Known bug this shipped with, since fixed:** the very first manual verification of this
   feature only checked the header cell (`.time-col`) and the first row's `.time-cell` — every
   *other* row's `.time-cell` was never actually confirmed to stay pinned, and a user later
   reported exactly that on a real phone (Firefox Mobile): only the header row stayed put while
@@ -630,6 +630,38 @@ Applying a preset/grid:
     same way the position fix made it the same explicit `position: sticky` element type. The
     e2e test now also asserts every row's width stays unchanged after scrolling and matches the
     header's width, not just its `x` position.
+
+### 26. Moving an entry by drag & drop
+
+- **Trigger:** the only way to relocate an existing entry used to be delete-and-recreate — open
+  it, note its content, delete it, click/drag-select the new cell(s), retype everything.
+- Dragging a **filled** cell (as opposed to dragging from an *empty* cell, item 4's existing
+  drag-to-select-a-new-range) picks up its entry instead: a dashed `.drop-target` outline
+  previews where it would land as the drag moves over other cells, and dropping relocates it
+  there — same interaction slot as item 4's drag-select (same `mousedown`/`mouseenter`/`mouseup`
+  wiring, and the same long-press-to-arm touch path, item 24), branched by whether the starting
+  cell has an entry.
+- **Not restricted to the day column it started in** — the entry can be dropped on any day, not
+  just a different row of the same one. `.drop-target` previews only within the *currently
+  hovered* day column (recomputed on every `mouseenter`/touch-move), so the preview always
+  matches where a drop right now would actually land.
+- **Multi-row entries move as one block** (`moveEntry` in `logic.js`): the whole span relocates
+  together to wherever the entry's *anchor* (its top row) is dropped, keeping its row count —
+  dragging doesn't resize it. If the drop would push the entry's span past the last row, the
+  landing row is clamped so it still fits entirely within the grid instead of hanging off the
+  bottom.
+- **Overwrite rule matches item 4's existing one for saving a new range over a filled cell**:
+  any different entry the destination range now overlaps is silently removed, exactly like
+  dragging a new selection over one already does on save — a drag-move isn't treated as a more
+  dangerous action needing its own extra confirmation than the create flow already doesn't have.
+- **A drop back on the entry's own starting cell is a no-op move** — treated the same as a plain
+  click with no drag: it opens the entry for editing, rather than silently doing nothing with no
+  feedback.
+- Respects the edit lock (item 22) the same way item 4's drag-to-select already does: blocked
+  entirely while locked (checked once, at the same `mousedown`/long-press-timer guard point).
+- **Affordance:** a filled cell gets `cursor: grab` (`cursor: grabbing` while held) instead of
+  the plain `cursor: pointer` every cell has by default — locked mode's own
+  `cursor: default` override still wins there, by specificity.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

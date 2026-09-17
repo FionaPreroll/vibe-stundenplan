@@ -12,6 +12,7 @@ import {
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  moveEntry,
   rowHasEntries,
   removeRow,
   findAnchorRow,
@@ -109,7 +110,11 @@ import {
   const rasterEnd = document.getElementById("rasterEnd");
 
   let activeSelection = null; // { day, rowStart, rowEnd, isNewRange }
-  let dragState = null; // { day, anchorRow, currentRow }
+  // mode: "select" (dragging from an empty cell to define a new entry's
+  // range) or "move" (dragging an existing entry to relocate it) — see
+  // wireCellSelection. currentDay only changes for "move" (a selection drag
+  // stays within the day column it started in; a move can cross columns).
+  let dragState = null; // { mode, day, anchorRow, currentDay, currentRow, span }
 
   function plan() {
     return getActivePlan(store);
@@ -486,20 +491,34 @@ import {
 
   setInterval(applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
 
-  // --- Drag-to-select ranges ---------------------------------------------
+  // --- Drag-to-select ranges, and drag-to-move an existing entry ---------
 
   function wireCellSelection(td, row, day) {
     td.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       if (getEditLocked(store)) return;
       e.preventDefault();
-      dragState = { day, anchorRow: row, currentRow: row };
-      document.body.classList.add("no-select");
-      highlightSelection(day, row, row);
+      const existing = plan().entries[cellKey(row, day)];
+      if (existing) {
+        dragState = { mode: "move", day, anchorRow: row, currentDay: day, currentRow: row, span: getEntrySpan(existing) };
+        document.body.classList.add("no-select");
+        highlightMoveTarget(day, row, dragState.span);
+      } else {
+        dragState = { mode: "select", day, anchorRow: row, currentDay: day, currentRow: row };
+        document.body.classList.add("no-select");
+        highlightSelection(day, row, row);
+      }
     });
 
     td.addEventListener("mouseenter", () => {
-      if (!dragState || dragState.day !== day) return;
+      if (!dragState) return;
+      if (dragState.mode === "move") {
+        dragState.currentDay = day;
+        dragState.currentRow = row;
+        highlightMoveTarget(day, row, dragState.span);
+        return;
+      }
+      if (dragState.day !== day) return;
       dragState.currentRow = row;
       highlightSelection(dragState.day, dragState.anchorRow, row);
     });
@@ -534,9 +553,15 @@ import {
         clearTimeout(touchPressTimer);
         touchPressTimer = setTimeout(() => {
           touchDragActive = true;
-          dragState = { day, anchorRow: row, currentRow: row };
+          const existing = plan().entries[cellKey(row, day)];
+          if (existing) {
+            dragState = { mode: "move", day, anchorRow: row, currentDay: day, currentRow: row, span: getEntrySpan(existing) };
+            highlightMoveTarget(day, row, dragState.span);
+          } else {
+            dragState = { mode: "select", day, anchorRow: row, currentDay: day, currentRow: row };
+            highlightSelection(day, row, row);
+          }
           document.body.classList.add("no-select");
-          highlightSelection(day, row, row);
           navigator.vibrate?.(15);
         }, LONG_PRESS_MS);
       },
@@ -555,7 +580,14 @@ import {
         e.preventDefault();
         const touch = e.touches[0];
         const cell = cellFromTouchPoint(touch.clientX, touch.clientY);
-        if (!cell || cell.dataset.day !== dragState.day) return;
+        if (!cell) return;
+        if (dragState.mode === "move") {
+          dragState.currentDay = cell.dataset.day;
+          dragState.currentRow = Number(cell.dataset.row);
+          highlightMoveTarget(dragState.currentDay, dragState.currentRow, dragState.span);
+          return;
+        }
+        if (cell.dataset.day !== dragState.day) return;
         dragState.currentRow = Number(cell.dataset.row);
         highlightSelection(dragState.day, dragState.anchorRow, dragState.currentRow);
         return;
@@ -580,11 +612,15 @@ import {
     if (!touchDragActive) return;
     touchDragActive = false;
     if (!dragState) return;
-    const { day, anchorRow, currentRow } = dragState;
+    const state = dragState;
     dragState = null;
     document.body.classList.remove("no-select");
     clearHighlight();
-    finalizeSelection(day, anchorRow, currentRow);
+    if (state.mode === "move") {
+      finalizeMove(state);
+    } else {
+      finalizeSelection(state.day, state.anchorRow, state.currentRow);
+    }
   }
 
   document.addEventListener("touchend", endTouchDrag);
@@ -602,6 +638,7 @@ import {
 
   function clearHighlight() {
     planBody.querySelectorAll(".data-cell.selecting").forEach((el) => el.classList.remove("selecting"));
+    planBody.querySelectorAll(".data-cell.drop-target").forEach((el) => el.classList.remove("drop-target"));
   }
 
   function highlightSelection(day, anchorRow, currentRow) {
@@ -617,14 +654,60 @@ import {
     });
   }
 
+  // Previews where a dragged entry would land if dropped on (day, row) right
+  // now — clamped the same way moveEntry itself clamps on drop, so the
+  // preview never lies about a span getting pulled back from the bottom
+  // edge of the grid.
+  function highlightMoveTarget(day, row, span) {
+    clearHighlight();
+    const p = plan();
+    const clampedRow = Math.max(0, Math.min(row, p.rowCount - span));
+    planBody.querySelectorAll(".data-cell").forEach((td) => {
+      if (td.dataset.day !== day) return;
+      const r = Number(td.dataset.row);
+      const cellSpan = td.rowSpan || 1;
+      if (r + cellSpan - 1 >= clampedRow && r <= clampedRow + span - 1) {
+        td.classList.add("drop-target");
+      }
+    });
+  }
+
   document.addEventListener("mouseup", () => {
     if (!dragState) return;
-    const { day, anchorRow, currentRow } = dragState;
+    const state = dragState;
     dragState = null;
     document.body.classList.remove("no-select");
     clearHighlight();
-    finalizeSelection(day, anchorRow, currentRow);
+    if (state.mode === "move") {
+      finalizeMove(state);
+    } else {
+      finalizeSelection(state.day, state.anchorRow, state.currentRow);
+    }
   });
+
+  // A drop back on the entry's own starting cell isn't a move — it's the
+  // drag-to-move equivalent of a plain click, so it opens the entry for
+  // editing instead, the same as a no-drag click on a filled cell already
+  // does via finalizeSelection below.
+  function finalizeMove({ day, anchorRow, currentDay, currentRow }) {
+    const p = plan();
+    if (currentDay === day && currentRow === anchorRow) {
+      const existing = p.entries[cellKey(anchorRow, day)];
+      if (existing) {
+        openEntryModal({
+          day,
+          rowStart: anchorRow,
+          rowEnd: anchorRow + getEntrySpan(existing) - 1,
+          isNewRange: false,
+          entry: existing,
+        });
+      }
+      return;
+    }
+    p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
+    persist();
+    renderBody();
+  }
 
   function finalizeSelection(day, anchorRow, currentRow) {
     const { rowStart, rowEnd } = computeSelectionRange(anchorRow, currentRow);
