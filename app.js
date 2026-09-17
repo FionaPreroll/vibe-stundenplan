@@ -58,6 +58,7 @@ import {
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
   const NOW_HIGHLIGHT_INTERVAL_MS = 30000;
   const MIN_COL_WIDTH = 60;
+  const TOAST_DURATION_MS = 2500;
 
   let store = loadStore(window.localStorage, detectDefaultLanguage(navigator.language));
 
@@ -83,11 +84,13 @@ import {
   const addRowBtn = document.getElementById("addRowBtn");
   const resetBtn = document.getElementById("resetBtn");
   const printBtn = document.getElementById("printBtn");
+  const jumpToNowBtn = document.getElementById("jumpToNowBtn");
   const editIconsToggle = document.getElementById("editIconsToggle");
   const exportBtn = document.getElementById("exportBtn");
   const exportAllBtn = document.getElementById("exportAllBtn");
   const importBtn = document.getElementById("importBtn");
   const importFileInput = document.getElementById("importFileInput");
+  const toastEl = document.getElementById("toast");
 
   const modalOverlay = document.getElementById("modalOverlay");
   const entryForm = document.getElementById("entryForm");
@@ -101,6 +104,7 @@ import {
   const fieldLink = document.getElementById("fieldLink");
   const applyAllDaysField = document.getElementById("applyAllDaysField");
   const applyAllDaysCheckbox = document.getElementById("applyAllDaysCheckbox");
+  const colorSwatchesEl = document.getElementById("colorSwatches");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
 
@@ -127,6 +131,48 @@ import {
     saveStore(store, window.localStorage);
   }
 
+  // --- Undo (single level) ------------------------------------------------
+  // Every action that mutates the active plan's own content (entries, day
+  // columns, times/rowCount, column widths, its name) snapshots the plan
+  // first — a deep clone, since which fields change varies per action.
+  // Deliberately just one level ("the last action", not a full history) and
+  // scoped to plan *content*: store-level preferences (theme, language,
+  // edit lock, which plan is active) aren't snapshotted, so Ctrl+Z never
+  // surprises someone by reverting a toggle they made on purpose. Creating/
+  // deleting/switching a whole plan is out of scope too — deletion already
+  // has its own confirm(), and there's no sane single "content" to restore
+  // a removed plan into.
+  let undoSnapshot = null; // { planId, plan: <deep clone> }
+
+  function snapshotForUndo() {
+    undoSnapshot = { planId: store.activePlanId, plan: structuredClone(plan()) };
+  }
+
+  function clearUndoSnapshot() {
+    undoSnapshot = null;
+  }
+
+  function performUndo() {
+    if (getEditLocked(store)) return;
+    if (!undoSnapshot || undoSnapshot.planId !== store.activePlanId) return;
+    store.plans[undoSnapshot.planId] = undoSnapshot.plan;
+    undoSnapshot = null;
+    persist();
+    renderAll();
+    showToast(t("undoToast"));
+  }
+
+  // --- Toast (brief, non-blocking feedback) -------------------------------
+
+  let toastHideTimer = null;
+
+  function showToast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.remove("hidden");
+    clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(() => toastEl.classList.add("hidden"), TOAST_DURATION_MS);
+  }
+
   function rainbowPalette() {
     const styles = getComputedStyle(document.documentElement);
     const colors = [];
@@ -137,6 +183,45 @@ import {
     return colors.length ? colors : ["#8fb8ff"];
   }
   const RAINBOW = rainbowPalette();
+
+  // --- Per-entry color ------------------------------------------------------
+
+  // Entries can be tinted with one of the app's own rainbow hues (the same
+  // ones already used for day headers) instead of inventing a separate
+  // palette — keeps the visual language consistent and needs no color
+  // picker UI. Swatches are built once (static content); "selected" state
+  // just tracks which one is currently active while the modal is open.
+  let selectedEntryColor = ""; // "" = no color (the default, neutral look)
+
+  function buildColorSwatches() {
+    colorSwatchesEl.innerHTML = "";
+
+    const noneBtn = document.createElement("button");
+    noneBtn.type = "button";
+    noneBtn.className = "color-swatch color-swatch-none";
+    noneBtn.dataset.color = "";
+    noneBtn.dataset.i18nTitle = "colorNoneTitle";
+    noneBtn.dataset.i18nAriaLabel = "colorNoneTitle";
+    noneBtn.addEventListener("click", () => selectEntryColor(""));
+    colorSwatchesEl.appendChild(noneBtn);
+
+    RAINBOW.forEach((color) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "color-swatch";
+      btn.style.background = color;
+      btn.dataset.color = color;
+      btn.addEventListener("click", () => selectEntryColor(color));
+      colorSwatchesEl.appendChild(btn);
+    });
+  }
+
+  function selectEntryColor(color) {
+    selectedEntryColor = color;
+    colorSwatchesEl.querySelectorAll(".color-swatch").forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.color === color);
+    });
+  }
 
   // Only a still-default weekday name (exact match against the current
   // language's defaults, same rule translateDefaultDayNames uses) has a
@@ -342,6 +427,13 @@ import {
           timeLabel.blur();
         }
       });
+      // Snapshotted once per edit session (on focus), not per keystroke —
+      // "input" fires on every character, and undoing a whole retyped
+      // label back to its pre-edit text in one Ctrl+Z is the useful
+      // granularity, not one letter at a time.
+      timeLabel.addEventListener("focus", () => {
+        snapshotForUndo();
+      });
       timeLabel.addEventListener("input", () => {
         p.times[row] = timeLabel.textContent;
         persist();
@@ -390,6 +482,11 @@ import {
 
     if (entry && entry.title) {
       td.classList.add("filled");
+
+      if (entry.color) {
+        td.classList.add("has-color");
+        td.style.setProperty("--entry-hue", entry.color);
+      }
 
       if (entry.startTime || entry.endTime) {
         const badge = document.createElement("p");
@@ -454,11 +551,10 @@ import {
 
   // --- "Now" highlight ---------------------------------------------------
 
-  function applyNowHighlight() {
-    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
-    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
-    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
-
+  // Shared by the highlight below and the "jump to now" button: which row
+  // (by the current time-of-day against the plan's own raster) and day
+  // column (by today's weekday name) count as "now" right now.
+  function computeNowPosition() {
     const p = plan();
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -473,18 +569,28 @@ import {
         break;
       }
     }
+
+    const dayIndex = p.days.indexOf(todayName);
+    return { currentRow, todayName, dayIndex };
+  }
+
+  function applyNowHighlight() {
+    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
+    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
+    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
+
+    const { currentRow, todayName, dayIndex } = computeNowPosition();
     if (currentRow === -1) return;
 
     const timeRow = planBody.children[currentRow];
     timeRow?.querySelector(".time-cell")?.classList.add("current-row");
 
-    const dayIndex = p.days.indexOf(todayName);
     if (dayIndex === -1) return;
 
     const headerCells = headerRow.querySelectorAll("th.day-col");
     headerCells[dayIndex]?.classList.add("current-day-col");
 
-    const anchorRow = findAnchorRow(currentRow, todayName, p.entries);
+    const anchorRow = findAnchorRow(currentRow, todayName, plan().entries);
     if (anchorRow === null) return;
     const anchorKey = cellKey(anchorRow, todayName);
     planBody.querySelectorAll(".data-cell").forEach((td) => {
@@ -493,6 +599,28 @@ import {
   }
 
   setInterval(applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
+
+  // --- "Jump to now" --------------------------------------------------------
+
+  // Scrolls the current row/day into view — handy on a long plan, or on
+  // mobile after scrolling far away. Falls back gracefully: if only the row
+  // or only the day is known (e.g. today isn't a column in this plan, or no
+  // raster row covers the current time), it scrolls to whichever is known
+  // instead of doing nothing.
+  function jumpToNow() {
+    const { currentRow, todayName, dayIndex } = computeNowPosition();
+    let target = null;
+    if (currentRow !== -1 && dayIndex !== -1) {
+      target = planBody.querySelector(`td[data-row="${currentRow}"][data-day="${CSS.escape(todayName)}"]`);
+    } else if (currentRow !== -1) {
+      target = planBody.children[currentRow]?.querySelector(".time-cell");
+    } else if (dayIndex !== -1) {
+      target = planBody.querySelector(`td[data-day="${CSS.escape(todayName)}"]`);
+    }
+    target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }
+
+  jumpToNowBtn.addEventListener("click", jumpToNow);
 
   // --- Drag-to-select ranges, and drag-to-move an existing entry ---------
 
@@ -707,6 +835,7 @@ import {
       }
       return;
     }
+    snapshotForUndo();
     p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
     persist();
     renderBody();
@@ -770,6 +899,7 @@ import {
     document.body.classList.remove("no-select");
 
     const p = plan();
+    snapshotForUndo();
     if (target.kind === "time") {
       p.timeColWidth = width;
     } else {
@@ -821,6 +951,7 @@ import {
     // isn't what this checkbox is for.
     applyAllDaysField.style.display = isNewRange ? "flex" : "none";
     applyAllDaysCheckbox.checked = false;
+    selectEntryColor(entry?.color || "");
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
     modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
     modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
@@ -838,12 +969,14 @@ import {
     if (!activeSelection) return;
     const { day, rowStart, rowEnd, isNewRange } = activeSelection;
     const p = plan();
+    snapshotForUndo();
     const update = computeEntryUpdate(
       fieldTitle.value,
       fieldDescription.value,
       fieldLink.value,
       fieldStartTime.value,
-      fieldEndTime.value
+      fieldEndTime.value,
+      selectedEntryColor
     );
     const anchorKey = cellKey(rowStart, day);
 
@@ -874,6 +1007,7 @@ import {
   function deleteEntry() {
     if (!activeSelection) return;
     const { day, rowStart } = activeSelection;
+    snapshotForUndo();
     delete plan().entries[cellKey(rowStart, day)];
     persist();
     renderBody();
@@ -910,6 +1044,7 @@ import {
       return;
     }
 
+    snapshotForUndo();
     p.rowCount = requiredRowCount(p.rowCount, newTimes.length);
     p.times = mergeTimes(p.times, newTimes);
     persist();
@@ -920,6 +1055,7 @@ import {
   // --- Row / reset actions -------------------------------------------------
 
   function addRow() {
+    snapshotForUndo();
     plan().rowCount += 1;
     persist();
     renderBody();
@@ -933,6 +1069,7 @@ import {
       if (!confirm(t("confirmRemoveRowWithEntries"))) return;
     }
 
+    snapshotForUndo();
     const result = removeRow(rowIndex, p.rowCount, p.times, p.entries);
     p.rowCount = result.rowCount;
     p.times = result.times;
@@ -943,6 +1080,7 @@ import {
 
   function resetAll() {
     if (!confirm(t("confirmResetPlan"))) return;
+    snapshotForUndo();
     const p = plan();
     p.rowCount = INITIAL_ROW_COUNT;
     p.times = [];
@@ -977,6 +1115,7 @@ import {
 
   function addDayColumn() {
     const p = plan();
+    snapshotForUndo();
     p.days.push(nextDefaultDayName(p.days));
     persist();
     renderHeader();
@@ -995,6 +1134,7 @@ import {
       if (!confirm(t("confirmRemoveDayWithEntries", { day }))) return;
     }
 
+    snapshotForUndo();
     p.days.splice(index, 1);
     p.entries = removeDayEntries(p.entries, day);
     p.columnWidths = removeDayWidth(p.columnWidths, day);
@@ -1034,6 +1174,7 @@ import {
         return;
       }
 
+      snapshotForUndo();
       p.days[index] = newName;
       p.entries = renameDayEntries(p.entries, oldName, newName);
       p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
@@ -1204,20 +1345,44 @@ import {
     }
   });
 
+  // A focused <input>/<textarea>/contenteditable gets the browser's own
+  // native text-undo for Ctrl+Z — e.g. mid-edit in the entry modal, or
+  // typing a time label or day name directly in the grid. Our plan-level
+  // undo only takes over when focus isn't in one of those, so the two
+  // never fight over the same keystroke.
+  function isEditableFocus(el) {
+    if (!el) return false;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return true;
+    return el.isContentEditable;
+  }
+
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!modalOverlay.classList.contains("hidden")) closeModal();
-    if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
-    if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
+    if (e.key === "Escape") {
+      if (!modalOverlay.classList.contains("hidden")) closeModal();
+      if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
+      if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+      if (isEditableFocus(document.activeElement)) return;
+      e.preventDefault();
+      performUndo();
+    }
   });
 
   planSwitcher.addEventListener("change", () => {
+    // Undo is scoped to "the last action on the plan I'm currently looking
+    // at" — leaving it (even briefly, then coming back) ends that context,
+    // rather than leaving a stale snapshot Ctrl+Z could unexpectedly jump
+    // back to later.
+    clearUndoSnapshot();
     switchPlan(store, planSwitcher.value);
     persist();
     renderAll();
   });
 
   newPlanBtn.addEventListener("click", () => {
+    clearUndoSnapshot();
     const newPlan = createEmptyPlan(nextDefaultPlanName(), getLanguage(store));
     addPlan(store, newPlan);
     persist();
@@ -1229,6 +1394,7 @@ import {
     if (store.planOrder.length <= 1) return;
     const p = plan();
     if (!confirm(t("confirmDeletePlan", { name: p.name }))) return;
+    clearUndoSnapshot();
     removePlan(store, p.id);
     persist();
     renderAll();
@@ -1258,6 +1424,7 @@ import {
 
   planTitleEl.addEventListener("blur", () => {
     const name = planTitleEl.textContent.trim() || t("defaultPlanName");
+    if (name !== plan().name) snapshotForUndo();
     planTitleEl.textContent = name;
     renamePlan(store, store.activePlanId, name);
     persist();
@@ -1279,5 +1446,6 @@ import {
     }
   });
 
+  buildColorSwatches();
   renderAll();
 })();

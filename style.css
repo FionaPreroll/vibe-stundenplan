@@ -615,6 +615,20 @@ tbody td {
   background: var(--entry-bg-hover);
 }
 
+/* Per-entry color override: --entry-hue is set inline (renderCellContent
+   in app.js) to one of the rainbow hues. A visibly stronger mix than the
+   default 6%/10% above — it needs to actually read as "this entry's
+   color", not just a faint tint — but still computed from --surface the
+   same way, so it still adapts automatically between light and dark mode
+   instead of needing its own light/dark pair. */
+.data-cell.filled.has-color .entry-box {
+  background: color-mix(in srgb, var(--entry-hue) 22%, var(--surface));
+}
+
+.data-cell.filled.has-color:hover .entry-box {
+  background: color-mix(in srgb, var(--entry-hue) 30%, var(--surface));
+}
+
 /* A filled cell is grabbable (drag it to move the entry, see item 26) —
    .selecting/.drop-target below cover the drag itself, this is just the
    affordance before one starts. Locked mode's own cursor: default override
@@ -692,6 +706,30 @@ body.no-select {
   font-size: 1.1rem;
   text-align: center;
   display: block;
+}
+
+/* Brief, non-blocking feedback (undo confirmation, drag-overwrite notice,
+   ...) — shown/hidden via app.js's showToast(), auto-dismisses on its own.
+   Above the modal overlay's z-index too, so it's never hidden behind one
+   left open. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-modal);
+  z-index: 110;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+
+.toast.hidden {
+  display: none;
 }
 
 /* Modal */
@@ -779,6 +817,44 @@ body.no-select {
   margin: 0;
   font-weight: 400;
   color: var(--text);
+/* Entry color picker: reuses the same rainbow hues as the day headers
+   (--day-1..7, see rainbowPalette() in app.js) instead of a separate
+   palette or a native <input type="color">, so the choices stay visually
+   consistent with the rest of the app and there's no browser-inconsistent
+   color-picker popup. */
+
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.color-swatch.selected {
+  border-color: var(--accent);
+}
+
+.color-swatch-none {
+  background: var(--surface);
+  position: relative;
+}
+
+.color-swatch-none::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  background: var(--danger);
+  clip-path: polygon(0 45%, 100% 45%, 100% 55%, 0 55%);
+  transform: rotate(45deg);
 }
 
 .modal-actions {

@@ -66,6 +66,7 @@
       <div class="action-group">
         <span class="action-group-label" data-i18n="toolbarGroupView"></span>
         <button id="printBtn" class="btn btn-secondary" type="button" data-i18n="printBtn"></button>
+        <button id="jumpToNowBtn" class="btn btn-secondary" type="button" data-i18n="jumpToNowBtn"></button>
         <label class="edit-icons-toggle">
           <input type="checkbox" id="editIconsToggle" checked />
           <span data-i18n="editIconsToggleLabel"></span>
@@ -97,6 +98,10 @@
     </div>
   </main>
 
+  <!-- Brief, non-blocking feedback (undo confirmation, drag-overwrite
+       notice, ...) — fixed position, shown/hidden via app.js's showToast(). -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
   <!-- Modal for editing a cell / range -->
   <div id="modalOverlay" class="modal-overlay hidden">
     <div class="modal">
@@ -107,6 +112,13 @@
           <span data-i18n="fieldTitleLabel"></span>
           <input type="text" id="fieldTitle" maxlength="80" autofocus data-i18n-placeholder="fieldTitlePlaceholder" />
         </label>
+        <div class="field">
+          <span data-i18n="fieldColorLabel"></span>
+          <!-- Swatch buttons injected by app.js's buildColorSwatches(), one
+               per rainbow hue plus a "no color" option — kept in sync with
+               the same --day-1..7 palette used for day headers. -->
+          <div class="color-swatches" id="colorSwatches" role="radiogroup" data-i18n-aria-label="fieldColorLabel"></div>
+        </div>
         <div class="raster-inputs">
           <label class="field field-inline">
             <span data-i18n="fieldStartLabel"></span>
