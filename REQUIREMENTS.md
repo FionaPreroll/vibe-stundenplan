@@ -297,7 +297,8 @@ Applying a preset/grid:
 - Hidden: the plan switcher, language selector, all action buttons, edit icons (remove
   row/column, add column, the empty-cell "+"), modals. The title loses its
   editable-looking outline (no `contenteditable` styling in print, even though the attribute
-  technically stays active).
+  technically stays active), and is centered and set larger (1.8rem vs. the on-screen 1.4rem)
+  — it reads as a document heading on a printout rather than an app-header label.
 - The header row's and filled cells' rainbow colors are forced via `print-color-adjust:
   exact`, since they're a content feature (weekday color-coding), not mere decoration that a
   frugal browser print would otherwise drop.
