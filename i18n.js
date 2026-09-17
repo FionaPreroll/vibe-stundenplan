@@ -96,6 +96,8 @@ const STRINGS = {
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
     undoToast: "Rückgängig gemacht",
+    dragOverwriteToastOne: '"{title}" wurde ersetzt',
+    dragOverwriteToastMany: "{count} Termine wurden ersetzt",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -188,6 +190,8 @@ const STRINGS = {
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
     undoToast: "Undone",
+    dragOverwriteToastOne: '"{title}" replaced',
+    dragOverwriteToastMany: "{count} entries replaced",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",

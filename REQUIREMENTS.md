@@ -654,6 +654,10 @@ Applying a preset/grid:
   any different entry the destination range now overlaps is silently removed, exactly like
   dragging a new selection over one already does on save — a drag-move isn't treated as a more
   dangerous action needing its own extra confirmation than the create flow already doesn't have.
+  "Silently" only means no confirmation prompt, not no feedback at all: a brief toast ("'X'
+  replaced", or "N entries replaced" for the rare case of more than one) confirms it happened,
+  via the same `showToast()` helper item 28's undo confirmation uses — the drop already fully
+  completed by the time it shows, undo is how to walk it back, not a blocking prompt beforehand.
 - **A drop back on the entry's own starting cell is a no-op move** — treated the same as a plain
   click with no drag: it opens the entry for editing, rather than silently doing nothing with no
   feedback.
