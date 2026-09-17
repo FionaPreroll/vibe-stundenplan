@@ -795,6 +795,30 @@ body.no-select {
   border-color: transparent;
 }
 
+/* A checkbox field reads better as one row (box, then label text) than
+   .field's default block-stacked "label above input" layout. */
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.field-checkbox input {
+  /* Overrides .field input's width: 100%/padding/border (meant for text
+     inputs) — a checkbox needs its own natural, unstretched size. */
+  width: auto;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.field-checkbox span {
+  margin: 0;
+  font-weight: 400;
+  color: var(--text);
+}
+
 /* Entry color picker: reuses the same rainbow hues as the day headers
    (--day-1..7, see rainbowPalette() in app.js) instead of a separate
    palette or a native <input type="color">, so the choices stay visually

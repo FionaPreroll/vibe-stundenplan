@@ -12,6 +12,7 @@ import {
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  applyEntryToAllDays,
   moveEntry,
   rowHasEntries,
   removeRow,
@@ -101,6 +102,8 @@ import {
   const timeHint = document.getElementById("timeHint");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
+  const applyAllDaysField = document.getElementById("applyAllDaysField");
+  const applyAllDaysCheckbox = document.getElementById("applyAllDaysCheckbox");
   const colorSwatchesEl = document.getElementById("colorSwatches");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
@@ -963,6 +966,11 @@ import {
     fieldEndTime.value = entry?.endTime || "";
     fieldDescription.value = entry?.description || "";
     fieldLink.value = entry?.link || "";
+    // Only meaningful when creating a brand-new entry — editing an existing
+    // one already has its own day/range, propagating it to every column
+    // isn't what this checkbox is for.
+    applyAllDaysField.style.display = isNewRange ? "flex" : "none";
+    applyAllDaysCheckbox.checked = false;
     selectEntryColor(entry?.color || "");
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
     modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
@@ -991,6 +999,14 @@ import {
       selectedEntryColor
     );
     const anchorKey = cellKey(rowStart, day);
+
+    if (update && isNewRange && applyAllDaysCheckbox.checked) {
+      p.entries = applyEntryToAllDays(p.entries, p.days, rowStart, rowEnd, update);
+      persist();
+      renderBody();
+      closeModal();
+      return;
+    }
 
     if (isNewRange) {
       findOverlappingKeys(p.entries, day, rowStart, rowEnd).forEach((k) => delete p.entries[k]);
