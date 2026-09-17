@@ -663,6 +663,23 @@ Applying a preset/grid:
   the plain `cursor: pointer` every cell has by default — locked mode's own
   `cursor: default` override still wins there, by specificity.
 
+### 27. "Jump to now" button
+
+- **Trigger:** on a long plan (a fine-grained raster, many rows) or on a phone after scrolling
+  far away, there was no quick way back to the current time/day — only manual scrolling, same as
+  finding any other cell.
+- A toolbar button (next to Print, in the "view" group) scrolls the current row/day into view,
+  reusing the same "what counts as now" computation the existing now-highlight (item 12) already
+  does each `NOW_HIGHLIGHT_INTERVAL_MS`, factored out so both share it instead of drifting apart.
+- **Graceful fallback when only half of "now" exists on this plan:** if today isn't one of the
+  plan's day columns, or no raster row covers the current time, it scrolls to whichever of
+  row/day *is* known instead of doing nothing; if neither is known, it's a no-op.
+- Works whether the page scrolls (long plan, tall viewport) or `.table-wrap` scrolls
+  horizontally (narrow screen, item 25's frozen time column) — `scrollIntoView` handles both
+  scroll containers at once rather than needing separate vertical/horizontal-scroll logic.
+- Hidden in print like the rest of the toolbar, for free — `.app-actions` already collapses to
+  nothing under `@media print`, so no extra print-specific rule was needed.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
