@@ -602,11 +602,28 @@ Applying a preset/grid:
     root cause. Kept anyway (harmless, arguably still cleaner markup), alongside a defensive
     `transform: translateZ(0)` on `.time-cell` for a separate, unverified Safari/WebKit bug
     class.
-  - **Now:** `e2e/sticky-time-column.spec.js` runs against Firefox too (`playwright.config.js`),
+  - Added `e2e/sticky-time-column.spec.js` to run against Firefox too (`playwright.config.js`),
     since this bug is specifically what that's for — the sandboxed environment some of this
     project's development happens in can't download the Firefox browser itself (network policy
     blocks Playwright's CDN), so `ci.yml`'s `e2e` job (normal GitHub-hosted runner) is the actual
-    verification loop for this bug now, not a local run.
+    verification loop for this bug, not a local run. Both projects (Chromium and Firefox)
+    initially passed against the position-only check the test had at that point — the reporter
+    then sent screenshots from Firefox's own responsive design mode that showed the real
+    symptom: `.time-cell` stayed at the correct **position** but its **width** collapsed down to
+    a sliver of its content on scroll (a raster label like "08:00–08:45" rendered as just ")–"
+    and "5"), clipping every row's time label to near-unreadable fragments. The test only
+    checked `x`, never `width`, so it missed this entirely despite genuinely running against
+    Firefox.
+  - **Actual root cause:** `.time-cell` never had its own explicit `width` — unlike `.time-col`
+    (which does, either the inline `timeColWidth`-driven style or the `92px` CSS default), it
+    relied entirely on `table-layout: fixed` inheriting the column's width from the header.
+    Firefox has a bug where a sticky table cell's width collapses to content size on horizontal
+    scroll unless it has its own explicit width rather than only an inherited one. Fix:
+    `timeTd.style.width` in `app.js` now mirrors `timeColEl.style.width` exactly (both driven by
+    `p.timeColWidth`), so `.time-cell` always has the same explicit width as `.time-col`, the
+    same way the position fix made it the same explicit `position: sticky` element type. The
+    e2e test now also asserts every row's width stays unchanged after scrolling and matches the
+    header's width, not just its `x` position.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

@@ -305,14 +305,19 @@ import {
 
       const timeTd = document.createElement("td");
       timeTd.className = "time-cell";
+      // Mirrors timeColEl.style.width (renderHeader, below) exactly. Below
+      // 600px this cell is position: sticky (style.css) — table-layout:
+      // fixed normally keeps every cell in a column the same width without
+      // needing this, but Firefox has a bug where a sticky table cell's
+      // width collapses to its content on horizontal scroll unless it has
+      // its own explicit width, rather than only inheriting the column's.
+      // .time-col (the header, which sets its own width directly) never
+      // had this problem; only .time-cell, which never set one, did.
+      timeTd.style.width = p.timeColWidth ? `${p.timeColWidth}px` : "";
 
       // The flex layout for the label + remove button lives on this inner
-      // wrapper rather than directly on timeTd itself — timeTd is the
-      // element position:sticky is applied to at narrow widths (see
-      // style.css), and Firefox has a long-standing bug where a sticky
-      // element that's also a flex container fails to reposition on
-      // scroll. .time-col (the header cell, never a flex container) never
-      // had this problem; only .time-cell did.
+      // wrapper rather than directly on timeTd itself, for unrelated
+      // reasons (see .time-cell-inner in style.css).
       const timeInner = document.createElement("div");
       timeInner.className = "time-cell-inner";
       timeTd.appendChild(timeInner);

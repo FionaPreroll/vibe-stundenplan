@@ -515,11 +515,12 @@ tbody td {
 }
 
 /* The flex layout for the label + remove button lives here rather than
-   directly on .time-cell: .time-cell is the element position:sticky gets
-   applied to at narrow widths (below), and Firefox has a long-standing bug
-   where a sticky element that's also a flex container fails to reposition
-   on scroll — only .time-col (never a flex container) stayed pinned,
-   .time-cell (until this wrapper) didn't. */
+   directly on .time-cell, keeping .time-cell itself a plain table cell
+   like .time-col — an earlier (insufficient on its own) attempt at fixing
+   a Firefox sticky-column bug; see item 25 in REQUIREMENTS.md and
+   timeTd.style.width in app.js for the actual fix (an explicit width, not
+   the display type, turned out to be what Firefox needed). Kept since it's
+   harmless either way. */
 .time-cell-inner {
   display: flex;
   align-items: center;

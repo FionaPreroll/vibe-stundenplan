@@ -24,6 +24,9 @@ test("time column stays pinned to the left during horizontal scroll on narrow sc
   const wrap = page.locator(".table-wrap");
   const wrapBox = await wrap.boundingBox();
 
+  const timeColBoxBefore = await page.locator(".time-col").boundingBox();
+  const timeCellBoxBefore = await page.locator(".time-cell").first().boundingBox();
+
   await wrap.evaluate((el) => (el.scrollLeft = el.scrollWidth));
 
   const timeColBox = await page.locator(".time-col").boundingBox();
@@ -34,5 +37,20 @@ test("time column stays pinned to the left during horizontal scroll on narrow sc
   for (const [index, cell] of timeCells.entries()) {
     const box = await cell.boundingBox();
     expect(Math.abs(box.x - wrapBox.x), `row ${index}'s .time-cell should stay flush with the scroll container's left edge`).toBeLessThan(2);
+    // Position alone isn't enough: on Firefox, a sticky .time-cell stayed
+    // flush at its left edge but its WIDTH collapsed down to a sliver of
+    // its content instead of keeping the column's actual width, clipping
+    // the time label down to unreadable fragments. Same for the header,
+    // as a sanity check that the column's width is consistent top to
+    // bottom, not just each cell internally unchanged.
+    expect(
+      Math.abs(box.width - timeCellBoxBefore.width),
+      `row ${index}'s .time-cell width should stay the same after scrolling, not collapse`
+    ).toBeLessThan(2);
+    expect(
+      Math.abs(box.width - timeColBox.width),
+      `row ${index}'s .time-cell width should match the header's width`
+    ).toBeLessThan(2);
   }
+  expect(Math.abs(timeColBox.width - timeColBoxBefore.width), "the header's own width shouldn't change after scrolling either").toBeLessThan(2);
 });
