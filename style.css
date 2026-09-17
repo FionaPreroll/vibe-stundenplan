@@ -507,6 +507,21 @@ tbody td {
 .time-cell {
   padding: 8px;
   background: var(--time-cell-bg);
+  /* Overrides tbody td's vertical-align: top — previously moot since
+     .time-cell's own display: flex took over alignment entirely; now that
+     it's a plain table cell again (see .time-cell-inner below), this is
+     needed to keep its content vertically centered like before. */
+  vertical-align: middle;
+}
+
+/* The flex layout for the label + remove button lives here rather than
+   directly on .time-cell, keeping .time-cell itself a plain table cell
+   like .time-col — an earlier (insufficient on its own) attempt at fixing
+   a Firefox sticky-column bug; see item 25 in REQUIREMENTS.md and
+   timeTd.style.width in app.js for the actual fix (an explicit width, not
+   the display type, turned out to be what Firefox needed). Kept since it's
+   harmless either way. */
+.time-cell-inner {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -872,6 +887,14 @@ body.no-select {
     position: sticky;
     left: 0;
     z-index: 2;
+    /* Belt-and-braces: forces its own compositor layer, a common
+       workaround for sticky-table-cell bugs in engines other than the one
+       this project can actually test against (Chromium — see
+       e2e/sticky-time-column.spec.js). Not verified against real
+       Safari/WebKit (unavailable in this environment). The main fix for
+       the bug actually reported (Firefox Mobile) is .time-cell no longer
+       being a flex container itself, above. */
+    transform: translateZ(0);
   }
 }
 

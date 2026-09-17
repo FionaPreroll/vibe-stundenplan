@@ -273,8 +273,13 @@ Applying a preset/grid:
 - `store.test.js` uses a small in-memory fake for `localStorage` (dependency-injected via
   `loadStore(storage, defaultLanguage)` / `saveStore(store, storage)`), so it needs no
   browser/DOM.
-- The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull
-  request.
+- A small, separate `e2e/` Playwright suite (`@playwright/test`, `npm run test:e2e`) for
+  layout/CSS regressions `node --test` can't see — see CONTRIBUTING.md's test philosophy for
+  scope (added only for behaviors that have actually broken, not preemptively). Runs against
+  both Chromium and Firefox (`playwright.config.js`'s `projects`); Firefox specifically because
+  the frozen time column bug (item 25) was Firefox-only.
+- The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull request,
+  as two jobs: `test` (`npm test`) and `e2e` (installs Chromium + Firefox, `npm run test:e2e`).
 
 ### 14. Deployment & screenshots
 
@@ -586,6 +591,45 @@ Applying a preset/grid:
   (`z-index: 3`) so the header row still covers it while scrolled down, and both sit below
   `.time-col` (`z-index: 4`), the corner cell frozen in both directions, which has to stay on
   top of both the frozen row and the frozen column it's the intersection of.
+- **Known bug this shipped with, still open:** the very first manual verification of this
+  feature only checked the header cell (`.time-col`) and the first row's `.time-cell` — every
+  *other* row's `.time-cell` was never actually confirmed to stay pinned, and a user later
+  reported exactly that on a real phone (Firefox Mobile): only the header row stayed put while
+  scrolling horizontally. Chromium (this project's local-dev engine, see CONTRIBUTING.md) keeps
+  every `.time-cell` correctly pinned regardless — `e2e/sticky-time-column.spec.js` (checks
+  *every* row, not just the first) never reproduced a failure against the already-shipped CSS,
+  in Chromium.
+  - **First attempted fix (didn't work):** `.time-col` (always worked) is a plain table cell;
+    `.time-cell` (didn't) was additionally `display: flex` on the very element
+    `position: sticky` was applied to, and Firefox has a documented bug along those lines. Moved
+    the flex layout (time label + row-remove button) into a `.time-cell-inner` wrapper `<div>`
+    so `.time-cell` itself is a plain sticky table cell again — confirmed by the reporter on
+    real Firefox Mobile that this did **not** fix it, so that wasn't the (or wasn't the whole)
+    root cause. Kept anyway (harmless, arguably still cleaner markup), alongside a defensive
+    `transform: translateZ(0)` on `.time-cell` for a separate, unverified Safari/WebKit bug
+    class.
+  - Added `e2e/sticky-time-column.spec.js` to run against Firefox too (`playwright.config.js`),
+    since this bug is specifically what that's for — the sandboxed environment some of this
+    project's development happens in can't download the Firefox browser itself (network policy
+    blocks Playwright's CDN), so `ci.yml`'s `e2e` job (normal GitHub-hosted runner) is the actual
+    verification loop for this bug, not a local run. Both projects (Chromium and Firefox)
+    initially passed against the position-only check the test had at that point — the reporter
+    then sent screenshots from Firefox's own responsive design mode that showed the real
+    symptom: `.time-cell` stayed at the correct **position** but its **width** collapsed down to
+    a sliver of its content on scroll (a raster label like "08:00–08:45" rendered as just ")–"
+    and "5"), clipping every row's time label to near-unreadable fragments. The test only
+    checked `x`, never `width`, so it missed this entirely despite genuinely running against
+    Firefox.
+  - **Actual root cause:** `.time-cell` never had its own explicit `width` — unlike `.time-col`
+    (which does, either the inline `timeColWidth`-driven style or the `92px` CSS default), it
+    relied entirely on `table-layout: fixed` inheriting the column's width from the header.
+    Firefox has a bug where a sticky table cell's width collapses to content size on horizontal
+    scroll unless it has its own explicit width rather than only an inherited one. Fix:
+    `timeTd.style.width` in `app.js` now mirrors `timeColEl.style.width` exactly (both driven by
+    `p.timeColWidth`), so `.time-cell` always has the same explicit width as `.time-col`, the
+    same way the position fix made it the same explicit `position: sticky` element type. The
+    e2e test now also asserts every row's width stays unchanged after scrolling and matches the
+    header's width, not just its `x` position.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

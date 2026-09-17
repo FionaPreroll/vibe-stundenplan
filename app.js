@@ -305,6 +305,22 @@ import {
 
       const timeTd = document.createElement("td");
       timeTd.className = "time-cell";
+      // Mirrors timeColEl.style.width (renderHeader, below) exactly. Below
+      // 600px this cell is position: sticky (style.css) — table-layout:
+      // fixed normally keeps every cell in a column the same width without
+      // needing this, but Firefox has a bug where a sticky table cell's
+      // width collapses to its content on horizontal scroll unless it has
+      // its own explicit width, rather than only inheriting the column's.
+      // .time-col (the header, which sets its own width directly) never
+      // had this problem; only .time-cell, which never set one, did.
+      timeTd.style.width = p.timeColWidth ? `${p.timeColWidth}px` : "";
+
+      // The flex layout for the label + remove button lives on this inner
+      // wrapper rather than directly on timeTd itself, for unrelated
+      // reasons (see .time-cell-inner in style.css).
+      const timeInner = document.createElement("div");
+      timeInner.className = "time-cell-inner";
+      timeTd.appendChild(timeInner);
 
       const timeLabel = document.createElement("span");
       timeLabel.className = "time-label";
@@ -322,7 +338,7 @@ import {
         p.times[row] = timeLabel.textContent;
         persist();
       });
-      timeTd.appendChild(timeLabel);
+      timeInner.appendChild(timeLabel);
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
@@ -331,7 +347,7 @@ import {
       removeBtn.setAttribute("aria-label", t("removeRowTitle"));
       removeBtn.textContent = "×";
       removeBtn.addEventListener("click", () => removeRowAt(row));
-      timeTd.appendChild(removeBtn);
+      timeInner.appendChild(removeBtn);
 
       tr.appendChild(timeTd);
 
