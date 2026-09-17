@@ -8,7 +8,7 @@
 <!-- ?v=N is a manual cache-buster: bump it whenever style.css changes and is
      pushed, so a visitor's browser can't end up with fresh HTML paired with a
      stale cached copy of the old CSS (see CONTRIBUTING.md). -->
-<link rel="stylesheet" href="style.css?v=7" />
+<link rel="stylesheet" href="style.css?v=8" />
 <script>
   // Sets the theme attribute before first paint, so a dark-mode choice
   // doesn't flash light while app.js (a deferred module script) loads.
@@ -37,6 +37,12 @@
       </div>
       <div class="title-row">
         <h1 id="planTitle" contenteditable="true" spellcheck="false" data-i18n-title="renameHint"></h1>
+        <!-- Kept next to the lock button (not in .app-actions, which is
+             hidden entirely while locked, item 22) since jumping to "now"
+             only scrolls — it doesn't mutate the plan — so it stays useful
+             in view-only/locked mode too, same reasoning as the plan
+             switcher/theme/language controls staying available. -->
+        <button id="jumpToNowBtn" class="btn btn-secondary" type="button" data-i18n="jumpToNowBtn"></button>
         <button id="editLockBtn" class="icon-btn" type="button" data-i18n-title="lockEditingTitle" data-i18n-aria-label="lockEditingTitle">🔓</button>
       </div>
       <select id="themeSwitcher" class="header-select" data-i18n-aria-label="themeSwitcherLabel">
@@ -66,7 +72,6 @@
       <div class="action-group">
         <span class="action-group-label" data-i18n="toolbarGroupView"></span>
         <button id="printBtn" class="btn btn-secondary" type="button" data-i18n="printBtn"></button>
-        <button id="jumpToNowBtn" class="btn btn-secondary" type="button" data-i18n="jumpToNowBtn"></button>
       </div>
       <div class="action-group reset-group">
         <button id="resetBtn" class="btn btn-danger-outline" data-i18n="resetBtn"></button>
