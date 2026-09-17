@@ -93,6 +93,7 @@ const STRINGS = {
       "Hinweis: Diese Zeile hat kein gültiges HH:MM–HH:MM-Zeitlabel, daher wird der Termin nicht eingerückt dargestellt.",
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
+    undoToast: "Rückgängig gemacht",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -182,6 +183,7 @@ const STRINGS = {
       "Note: this row doesn't have a valid HH:MM–HH:MM time label, so the entry won't be shown indented.",
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
+    undoToast: "Undone",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",

@@ -8,7 +8,7 @@
 <!-- ?v=N is a manual cache-buster: bump it whenever style.css changes and is
      pushed, so a visitor's browser can't end up with fresh HTML paired with a
      stale cached copy of the old CSS (see CONTRIBUTING.md). -->
-<link rel="stylesheet" href="style.css?v=3" />
+<link rel="stylesheet" href="style.css?v=4" />
 <script>
   // Sets the theme attribute before first paint, so a dark-mode choice
   // doesn't flash light while app.js (a deferred module script) loads.
@@ -97,6 +97,10 @@
       </table>
     </div>
   </main>
+
+  <!-- Brief, non-blocking feedback (undo confirmation, drag-overwrite
+       notice, ...) — fixed position, shown/hidden via app.js's showToast(). -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <!-- Modal for editing a cell / range -->
   <div id="modalOverlay" class="modal-overlay hidden">
