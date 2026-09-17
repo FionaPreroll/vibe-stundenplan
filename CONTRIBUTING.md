@@ -179,6 +179,17 @@ actually broke.
 
 ## Branching & reviewing a PR without running it locally
 
+Create work branches as `feature/<short-kebab-case-description>` (for example,
+`feature/this-and-that`) and open a PR only after committing the completed change. Every PR body
+must contain a **Preview** link for its exact branch, using this form:
+
+```markdown
+[Preview](https://raw.githack.com/FionaPreroll/vibe-stundenplan/<branch>/index.html)
+```
+
+This repository's [AGENTS.md](AGENTS.md) makes these contribution rules available to coding
+agents, while [CLAUDE.md](CLAUDE.md) points Claude Code at the same canonical instructions.
+
 `main` is the stable branch; changes land via a PR from a feature branch (`ci.yml` already
 runs `npm test` on every push *and* PR, so a PR's tests are visible before it merges).
 
