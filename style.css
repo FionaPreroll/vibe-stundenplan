@@ -968,6 +968,20 @@ body.no-select {
     width: 100%;
   }
 
+  /* A plan with enough rows already spans multiple printed pages (expected —
+     paper is finite, not itself a bug). Makes explicit what Chromium already
+     does by default when a page break falls in the middle of a multi-row
+     entry (item 4, drag-select across several time slots, rendered as one
+     rowspan-merged cell): the whole row moves to the next page together
+     instead of its content getting split across the two. Declared rather
+     than relied on, since that default isn't guaranteed across browsers/
+     engines. page-break-inside is the older/wider-supported alias for the
+     same thing. */
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .time-col,
   .time-cell {
     /* !important: overrides a manual on-screen column resize (inline

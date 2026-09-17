@@ -309,6 +309,12 @@ Applying a preset/grid:
 - `@page { size: landscape }` as a hint to the browser — weekly tables are wider than they are
   tall, even though not every browser/OS picks that up automatically (in which case the user
   picks landscape manually in the print dialog).
+- A plan with enough rows already spans multiple printed pages — expected, not itself a bug.
+  `tr { break-inside: avoid }` (plus the older `page-break-inside: avoid` alias) makes explicit
+  that when a page break falls in the middle of a multi-row entry (item 4, one rowspan-merged
+  cell across several time slots), the whole row moves to the next page together instead of
+  its content getting split across the two — declared rather than relied on, since that's not
+  guaranteed default behavior across every browser/engine.
 - The now-highlight (item 11 — current row, current day column, current cell) is also reset
   to its unhighlighted look in print: it's live UI state tied to the exact moment of printing,
   not part of the plan's actual content, so a printout shouldn't freeze in whatever minute it
