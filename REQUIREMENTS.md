@@ -275,9 +275,11 @@ Applying a preset/grid:
   browser/DOM.
 - A small, separate `e2e/` Playwright suite (`@playwright/test`, `npm run test:e2e`) for
   layout/CSS regressions `node --test` can't see — see CONTRIBUTING.md's test philosophy for
-  scope (added only for behaviors that have actually broken, not preemptively).
+  scope (added only for behaviors that have actually broken, not preemptively). Runs against
+  both Chromium and Firefox (`playwright.config.js`'s `projects`); Firefox specifically because
+  the frozen time column bug (item 25) was Firefox-only.
 - The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull request,
-  as two jobs: `test` (`npm test`) and `e2e` (installs a Chromium browser, `npm run test:e2e`).
+  as two jobs: `test` (`npm test`) and `e2e` (installs Chromium + Firefox, `npm run test:e2e`).
 
 ### 14. Deployment & screenshots
 
@@ -583,23 +585,28 @@ Applying a preset/grid:
   (`z-index: 3`) so the header row still covers it while scrolled down, and both sit below
   `.time-col` (`z-index: 4`), the corner cell frozen in both directions, which has to stay on
   top of both the frozen row and the frozen column it's the intersection of.
-- **Known bug this shipped with, then fixed:** the very first manual verification of this
+- **Known bug this shipped with, still open:** the very first manual verification of this
   feature only checked the header cell (`.time-col`) and the first row's `.time-cell` — every
   *other* row's `.time-cell` was never actually confirmed to stay pinned, and a user later
   reported exactly that on a real phone (Firefox Mobile): only the header row stayed put while
-  scrolling horizontally. Chromium (the only engine this project can test against, see
-  CONTRIBUTING.md) keeps every `.time-cell` correctly pinned regardless — the automated
-  regression test added for this (`e2e/sticky-time-column.spec.js`, checks *every* row, not
-  just the first) never reproduced a failure against the already-shipped CSS, in Chromium.
-  **Root cause:** `.time-col` (always worked) is a plain table cell; `.time-cell` (didn't) was
-  additionally `display: flex` on the very element `position: sticky` was applied to — Firefox
-  has a long-standing bug where a sticky element that's also a flex container fails to
-  reposition on scroll. Fix: the flex layout (for the time label + row-remove button) moved to
-  a new `.time-cell-inner` wrapper `<div>` inside the `<td>`, so `.time-cell` itself is a plain
-  sticky table cell again, like `.time-col`. `.time-cell` also keeps a defensive
-  `transform: translateZ(0)` (forces its own compositor layer, the standard workaround for a
-  *different*, Safari/WebKit-specific sticky-table-cell bug) — that part is unverified, since
-  no WebKit engine is available in this project's tooling.
+  scrolling horizontally. Chromium (this project's local-dev engine, see CONTRIBUTING.md) keeps
+  every `.time-cell` correctly pinned regardless — `e2e/sticky-time-column.spec.js` (checks
+  *every* row, not just the first) never reproduced a failure against the already-shipped CSS,
+  in Chromium.
+  - **First attempted fix (didn't work):** `.time-col` (always worked) is a plain table cell;
+    `.time-cell` (didn't) was additionally `display: flex` on the very element
+    `position: sticky` was applied to, and Firefox has a documented bug along those lines. Moved
+    the flex layout (time label + row-remove button) into a `.time-cell-inner` wrapper `<div>`
+    so `.time-cell` itself is a plain sticky table cell again — confirmed by the reporter on
+    real Firefox Mobile that this did **not** fix it, so that wasn't the (or wasn't the whole)
+    root cause. Kept anyway (harmless, arguably still cleaner markup), alongside a defensive
+    `transform: translateZ(0)` on `.time-cell` for a separate, unverified Safari/WebKit bug
+    class.
+  - **Now:** `e2e/sticky-time-column.spec.js` runs against Firefox too (`playwright.config.js`),
+    since this bug is specifically what that's for — the sandboxed environment some of this
+    project's development happens in can't download the Firefox browser itself (network policy
+    blocks Playwright's CDN), so `ci.yml`'s `e2e` job (normal GitHub-hosted runner) is the actual
+    verification loop for this bug now, not a local run.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

@@ -15,4 +15,15 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4174",
   },
+  // Every spec runs against both engines: sticky/layout CSS bugs in this
+  // project have specifically been engine-dependent (the frozen time
+  // column, item 25, only broke on Firefox — Chromium alone never caught
+  // it). The sandbox some of this project's development happens in can't
+  // download the Firefox browser (network policy blocks Playwright's CDN),
+  // so the firefox project is unverifiable there — CI (normal internet
+  // access) is the real gate for it; see CONTRIBUTING.md.
+  projects: [
+    { name: "chromium", use: { browserName: "chromium" } },
+    { name: "firefox", use: { browserName: "firefox" } },
+  ],
 });

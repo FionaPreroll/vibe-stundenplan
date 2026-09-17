@@ -46,6 +46,15 @@ the DOM, call a pure function, write the result back to the DOM.
   still the manual-Playwright-and-discard default above. Keep this suite small and targeted,
   the same way the module map above keeps `logic.js`/`io.js`/`store.js`/`i18n.js` small and
   targeted — it's a regression guard for known fragile spots, not a parallel test pyramid.
+- **Runs against both Chromium and Firefox** (`playwright.config.js`'s `projects`) — the
+  sticky-time-column bug above was specifically Firefox-only, so a Chromium-only suite would
+  have kept missing it. If the environment you're developing in can't download the Firefox
+  browser (`npx playwright install firefox` fails with a network/policy error — this has
+  happened in at least one sandboxed dev environment this project was built in, which blocks
+  Playwright's CDN entirely), the `firefox` project is simply unverifiable locally there; treat
+  `ci.yml`'s `e2e` job (runs on a GitHub-hosted runner with normal internet access) as the real
+  gate for it, and check its result rather than assuming a Chromium-only local pass covers
+  Firefox too.
 
 ## Modularity: vanilla JS isn't dogma
 
