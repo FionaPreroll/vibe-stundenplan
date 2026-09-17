@@ -835,10 +835,30 @@ import {
       }
       return;
     }
+    // Mirrors moveEntry's own clamping/overlap logic (logic.js) just to
+    // find out, before the move happens, whether it's about to silently
+    // replace a different entry — moveEntry itself doesn't report that,
+    // it just does it (same overwrite rule as any other save, item 4).
+    const fromKey = cellKey(anchorRow, day);
+    const movingEntry = p.entries[fromKey];
+    const span = getEntrySpan(movingEntry);
+    const clampedRow = Math.max(0, Math.min(currentRow, p.rowCount - span));
+    const entriesWithoutSource = { ...p.entries };
+    delete entriesWithoutSource[fromKey];
+    const overwrittenTitles = findOverlappingKeys(entriesWithoutSource, currentDay, clampedRow, clampedRow + span - 1)
+      .map((k) => entriesWithoutSource[k].title)
+      .filter(Boolean);
+
     snapshotForUndo();
     p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
     persist();
     renderBody();
+
+    if (overwrittenTitles.length === 1) {
+      showToast(t("dragOverwriteToastOne", { title: overwrittenTitles[0] }));
+    } else if (overwrittenTitles.length > 1) {
+      showToast(t("dragOverwriteToastMany", { count: overwrittenTitles.length }));
+    }
   }
 
   function finalizeSelection(day, anchorRow, currentRow) {

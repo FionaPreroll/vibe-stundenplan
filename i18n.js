@@ -97,6 +97,8 @@ const STRINGS = {
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
     undoToast: "Rückgängig gemacht",
+    dragOverwriteToastOne: '"{title}" wurde ersetzt',
+    dragOverwriteToastMany: "{count} Termine wurden ersetzt",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -130,6 +132,12 @@ const STRINGS = {
     newPlanName: "Neuer Plan",
     newDayName: "Tag",
     importedPlanName: "Importierter Plan",
+
+    demoEntry1Title: "👋 Willkommen!",
+    demoEntry1Description: "Das ist ein Beispiel. 🔒 oben anklicken zum Bearbeiten oder um einen neuen, leeren Plan zu starten.",
+    demoEntry2Title: "Sport",
+    demoEntry3Title: "Projektarbeit",
+    demoEntry3Description: "Gruppenarbeit im Labor",
   },
   en: {
     appTitleSuffix: "Schedule",
@@ -190,6 +198,8 @@ const STRINGS = {
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
     undoToast: "Undone",
+    dragOverwriteToastOne: '"{title}" replaced',
+    dragOverwriteToastMany: "{count} entries replaced",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",
@@ -222,6 +232,12 @@ const STRINGS = {
     newPlanName: "New Schedule",
     newDayName: "Day",
     importedPlanName: "Imported Schedule",
+
+    demoEntry1Title: "👋 Welcome!",
+    demoEntry1Description: "This is a demo. Tap 🔒 above to edit it or start a new, empty schedule.",
+    demoEntry2Title: "Gym",
+    demoEntry3Title: "Project work",
+    demoEntry3Description: "Group work in the lab",
   },
 };
 
