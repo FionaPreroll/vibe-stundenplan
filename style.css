@@ -576,6 +576,10 @@ tbody td {
   inset: 0;
   box-sizing: border-box;
   padding: 8px 10px;
+  /* Entries sit on their own tinted surface. Set their foreground explicitly
+     rather than relying on inheritance from the table/body: that keeps both
+     the title and description readable after a dark-theme token change. */
+  color: var(--text);
   overflow: hidden;
   transition: background 0.12s ease;
 }
@@ -692,6 +696,7 @@ body.no-select {
 .entry-title {
   font-weight: 600;
   font-size: 0.85rem;
+  color: var(--text);
   margin: 0 0 4px;
   word-break: break-word;
 }
