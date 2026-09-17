@@ -158,6 +158,7 @@ in `logic.js`):
 | `startTime`   | `string`     | no        | `"HH:MM"`, independent of the row's time label — see REQUIREMENTS.md section 5 (sub-raster times). Only set if filled in in the entry modal. |
 | `endTime`     | `string`     | no        | same as `startTime`.                                                                                 |
 | `span`        | integer ≥ 1  | no        | Number of rows occupied starting at the anchor row. **Omitted when `span === 1`** (the app only writes this field for multi-row entries); if absent, `1` applies (`getEntrySpan`). |
+| `color`       | `string`     | no        | CSS color (the app itself only ever writes one of its own `--day-1..7` rainbow hex values, picked in the entry modal). Tints the cell's background instead of the default neutral one. Absent means no per-entry color. |
 
 `span` must not exceed `rowCount` at that position (`row + span - 1 < rowCount`), or the cell
 renders past the visible grid.
@@ -248,7 +249,8 @@ a `plan` object or a `plans` array, each plan validated against the same shared 
               "link": { "type": "string" },
               "startTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
               "endTime": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
-              "span": { "type": "integer", "minimum": 1 }
+              "span": { "type": "integer", "minimum": 1 },
+              "color": { "type": "string" }
             }
           }
         }

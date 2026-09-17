@@ -101,6 +101,7 @@ import {
   const timeHint = document.getElementById("timeHint");
   const fieldDescription = document.getElementById("fieldDescription");
   const fieldLink = document.getElementById("fieldLink");
+  const colorSwatchesEl = document.getElementById("colorSwatches");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
   const cancelModalBtn = document.getElementById("cancelModalBtn");
 
@@ -179,6 +180,45 @@ import {
     return colors.length ? colors : ["#8fb8ff"];
   }
   const RAINBOW = rainbowPalette();
+
+  // --- Per-entry color ------------------------------------------------------
+
+  // Entries can be tinted with one of the app's own rainbow hues (the same
+  // ones already used for day headers) instead of inventing a separate
+  // palette — keeps the visual language consistent and needs no color
+  // picker UI. Swatches are built once (static content); "selected" state
+  // just tracks which one is currently active while the modal is open.
+  let selectedEntryColor = ""; // "" = no color (the default, neutral look)
+
+  function buildColorSwatches() {
+    colorSwatchesEl.innerHTML = "";
+
+    const noneBtn = document.createElement("button");
+    noneBtn.type = "button";
+    noneBtn.className = "color-swatch color-swatch-none";
+    noneBtn.dataset.color = "";
+    noneBtn.dataset.i18nTitle = "colorNoneTitle";
+    noneBtn.dataset.i18nAriaLabel = "colorNoneTitle";
+    noneBtn.addEventListener("click", () => selectEntryColor(""));
+    colorSwatchesEl.appendChild(noneBtn);
+
+    RAINBOW.forEach((color) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "color-swatch";
+      btn.style.background = color;
+      btn.dataset.color = color;
+      btn.addEventListener("click", () => selectEntryColor(color));
+      colorSwatchesEl.appendChild(btn);
+    });
+  }
+
+  function selectEntryColor(color) {
+    selectedEntryColor = color;
+    colorSwatchesEl.querySelectorAll(".color-swatch").forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.color === color);
+    });
+  }
 
   // Only a still-default weekday name (exact match against the current
   // language's defaults, same rule translateDefaultDayNames uses) has a
@@ -439,6 +479,11 @@ import {
 
     if (entry && entry.title) {
       td.classList.add("filled");
+
+      if (entry.color) {
+        td.classList.add("has-color");
+        td.style.setProperty("--entry-hue", entry.color);
+      }
 
       if (entry.startTime || entry.endTime) {
         const badge = document.createElement("p");
@@ -898,6 +943,7 @@ import {
     fieldEndTime.value = entry?.endTime || "";
     fieldDescription.value = entry?.description || "";
     fieldLink.value = entry?.link || "";
+    selectEntryColor(entry?.color || "");
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
     modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
     modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
@@ -921,7 +967,8 @@ import {
       fieldDescription.value,
       fieldLink.value,
       fieldStartTime.value,
-      fieldEndTime.value
+      fieldEndTime.value,
+      selectedEntryColor
     );
     const anchorKey = cellKey(rowStart, day);
 
@@ -1383,5 +1430,6 @@ import {
     }
   });
 
+  buildColorSwatches();
   renderAll();
 })();

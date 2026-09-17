@@ -715,6 +715,28 @@ Applying a preset/grid:
 - A brief toast ("Undone"/"Rückgängig gemacht") confirms an undo fired — the same reusable
   `#toast` element/`showToast()` helper other brief, non-blocking feedback (e.g. item 28) uses.
 
+### 29. Per-entry color
+
+- **Trigger:** every entry used the same neutral accent-tinted background — no way to visually
+  group or distinguish entries at a glance (e.g. color-coding by subject or by type of
+  activity), only the day column's own (fixed, one-per-column) rainbow color.
+- **Reuses the app's own rainbow hues** (`--day-1..7`, the same ones used for day headers)
+  as the selectable palette, plus a "no color" option — a picker of small circular swatch
+  buttons in the entry modal, rather than a separate custom palette or a native
+  `<input type="color">` (inconsistent-looking popup across browsers/platforms, and full color
+  freedom isn't the point — staying visually consistent with the rest of the app is). Selecting
+  a swatch and saving stores that hex string directly on the entry (`color`); "no color" clears
+  it. Optional field, omitted from `entries` entirely when unset (see EXPORT_FORMAT.md).
+- **Rendered as a stronger color-mix tint than the default neutral background** (22%/30% on
+  hover vs. the default's 6%/10%) — needs to actually read as "this entry's color" against the
+  surface, not just a barely-visible hint of it — but still computed as `color-mix(in srgb,
+  <hue> <percent>, var(--surface))`, the same formula the existing neutral background and the
+  "now" highlight already use, so it keeps adapting automatically between light and dark mode
+  instead of needing its own light/dark value pair per hue.
+- Printed like any other filled cell background (already covered by the existing
+  `print-color-adjust: exact` rule for `.data-cell.filled .entry-box`, which a colored entry
+  still matches).
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
