@@ -83,6 +83,7 @@ import {
   const addRowBtn = document.getElementById("addRowBtn");
   const resetBtn = document.getElementById("resetBtn");
   const printBtn = document.getElementById("printBtn");
+  const jumpToNowBtn = document.getElementById("jumpToNowBtn");
   const editIconsToggle = document.getElementById("editIconsToggle");
   const exportBtn = document.getElementById("exportBtn");
   const exportAllBtn = document.getElementById("exportAllBtn");
@@ -502,11 +503,10 @@ import {
 
   // --- "Now" highlight ---------------------------------------------------
 
-  function applyNowHighlight() {
-    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
-    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
-    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
-
+  // Shared by the highlight below and the "jump to now" button: which row
+  // (by the current time-of-day against the plan's own raster) and day
+  // column (by today's weekday name) count as "now" right now.
+  function computeNowPosition() {
     const p = plan();
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -521,18 +521,28 @@ import {
         break;
       }
     }
+
+    const dayIndex = p.days.indexOf(todayName);
+    return { currentRow, todayName, dayIndex };
+  }
+
+  function applyNowHighlight() {
+    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
+    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
+    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
+
+    const { currentRow, todayName, dayIndex } = computeNowPosition();
     if (currentRow === -1) return;
 
     const timeRow = planBody.children[currentRow];
     timeRow?.querySelector(".time-cell")?.classList.add("current-row");
 
-    const dayIndex = p.days.indexOf(todayName);
     if (dayIndex === -1) return;
 
     const headerCells = headerRow.querySelectorAll("th.day-col");
     headerCells[dayIndex]?.classList.add("current-day-col");
 
-    const anchorRow = findAnchorRow(currentRow, todayName, p.entries);
+    const anchorRow = findAnchorRow(currentRow, todayName, plan().entries);
     if (anchorRow === null) return;
     const anchorKey = cellKey(anchorRow, todayName);
     planBody.querySelectorAll(".data-cell").forEach((td) => {
@@ -541,6 +551,28 @@ import {
   }
 
   setInterval(applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
+
+  // --- "Jump to now" --------------------------------------------------------
+
+  // Scrolls the current row/day into view — handy on a long plan, or on
+  // mobile after scrolling far away. Falls back gracefully: if only the row
+  // or only the day is known (e.g. today isn't a column in this plan, or no
+  // raster row covers the current time), it scrolls to whichever is known
+  // instead of doing nothing.
+  function jumpToNow() {
+    const { currentRow, todayName, dayIndex } = computeNowPosition();
+    let target = null;
+    if (currentRow !== -1 && dayIndex !== -1) {
+      target = planBody.querySelector(`td[data-row="${currentRow}"][data-day="${CSS.escape(todayName)}"]`);
+    } else if (currentRow !== -1) {
+      target = planBody.children[currentRow]?.querySelector(".time-cell");
+    } else if (dayIndex !== -1) {
+      target = planBody.querySelector(`td[data-day="${CSS.escape(todayName)}"]`);
+    }
+    target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }
+
+  jumpToNowBtn.addEventListener("click", jumpToNow);
 
   // --- Drag-to-select ranges, and drag-to-move an existing entry ---------
 
