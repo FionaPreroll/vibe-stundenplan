@@ -66,10 +66,7 @@
     --border: #34343f;
     --text: #eeeef3;
     --text-muted: #9a9aa8;
-    /* README's dark, locked example renders entries on a lightened tile;
-       use the dark page foreground for its small description text so it
-       retains readable contrast instead of fading into the tile. */
-    --entry-description: var(--bg);
+    --entry-description: var(--accent-contrast);
     --accent: #7a7aff;
     --danger: #ff6b61;
     --warn: #e0a940;
@@ -85,7 +82,7 @@
   --border: #34343f;
   --text: #eeeef3;
   --text-muted: #9a9aa8;
-  --entry-description: var(--bg);
+  --entry-description: var(--accent-contrast);
   --accent: #7a7aff;
   --danger: #ff6b61;
   --warn: #e0a940;
