@@ -7,7 +7,11 @@ with automated screenshots".
 
 For module responsibilities, test philosophy, and conventions (i18n, when a framework would be
 worth it, etc.) see [CONTRIBUTING.md](CONTRIBUTING.md) — this document describes the *what*,
-CONTRIBUTING.md the *how*.
+CONTRIBUTING.md the *how*. Requirements below are kept at the level of observable behavior and
+data invariants; where a requirement's *implementation* (a specific DOM structure, CSS
+mechanism, or pixel math) is itself worth recording — because it was chosen deliberately over an
+alternative, not just "however it happened to get built" — that reasoning lives in a short,
+dated record under [docs/decisions/](docs/decisions/) instead, linked from the relevant item.
 
 ## Purpose
 
@@ -41,12 +45,15 @@ locally in the browser, for German- and English-speaking users.
 | `io.js` | Export/import serialization of a plan (JSON), takes language as a parameter |
 | `store.js` | Persistence of multiple plans + language choice; wraps `localStorage`, storage is injectable (testability) |
 | `i18n.js` | String dictionary (DE/EN) + pure helpers (`translate`, `detectDefaultLanguage`) |
-| `app.js` | DOM controller; the only module that touches `document`/`window`/`alert`/`confirm` |
+| `render.js` | Table/modal rendering (DOM creation) |
+| `selection.js` | Drag-to-select/drag-to-move state machine (mouse + touch) and copy/paste |
+| `columns.js` | Day-column management (add/remove/rename/translate) and column-width resizing |
+| `app.js` | DOM controller; the only module that touches `document`/`window`/`alert`/`confirm` — wires the four modules above together plus its own modal/undo/plan-management logic |
 
 Test files (`logic.test.js`, `io.test.js`, `store.test.js`, `i18n.test.js`) mirror the four
-logic modules 1:1. `app.js` deliberately has no automated tests (rationale in
-CONTRIBUTING.md); its correctness is checked during development via Playwright end-to-end
-runs.
+logic modules 1:1. `app.js`, `render.js`, `selection.js`, and `columns.js` deliberately have no
+automated unit tests (rationale in CONTRIBUTING.md); their correctness is checked during
+development via Playwright end-to-end runs.
 
 ## Functional requirements
 
@@ -127,16 +134,16 @@ Applying a preset/grid:
 - **Purpose:** an entry should be able to start/end in the middle of a row (e.g. a 15-minute
   call at 08:10–08:25 inside an 08:00–09:00 row), without the whole grid needing to be that
   finely resolved.
-- **Display:** a small time badge above the title; the entry's visible box (an `.entry-box`
-  div, positioned absolutely within the `<td>` rather than coloring/outlining the `<td>`
-  itself) is additionally shifted within its cell — pixel-based via `top`/`bottom`,
-  proportional to where the time sits within the total time span of the occupied row(s)
-  (deliberately pixels instead of CSS percent, see above). Important: it's the **box itself**
-  that shifts (its top/bottom edge), not just its content via padding — otherwise it looks
-  like only the text slides down while the cell visually already starts earlier, which looks
-  odd for a multi-row entry with a late start. This is a **visual approximation**, not a
-  pixel-perfect calendar — and falls back to "no shift" when the row time labels aren't
-  parseable as `HH:MM–HH:MM` (e.g. the empty rows a fresh plan starts with).
+- **Observable behavior:** a small time badge shows above the entry's title, and the entry's
+  own visible area additionally starts/ends within its occupied cell(s) proportional to where
+  its time sits within the total time span of those row(s) — not just its text, the whole
+  visible area shifts, so a multi-row entry with a late start visibly starts lower rather than
+  merely showing indented text. This is a **visual approximation**, not a pixel-perfect
+  calendar, and falls back to "no shift" when the row time labels aren't parseable as
+  `HH:MM–HH:MM` (e.g. the empty rows a fresh plan starts with). For the concrete rendering
+  mechanism (an absolutely-positioned `.entry-box`, pixel math instead of CSS percent) and why
+  it was chosen, see
+  [docs/decisions/0001-sub-raster-entry-positioning.md](docs/decisions/0001-sub-raster-entry-positioning.md).
 - **UX safeguard:** if a start/end time is set in the entry modal but the affected row(s)
   don't have a parseable time label, a hint text appears explaining that — instead of the
   inset just silently not happening and looking like a bug.
@@ -359,7 +366,7 @@ Applying a preset/grid:
   area and make buttons (Save, Cancel) unreachable. With the cap, the modal becomes internally
   scrollable instead; all fields and buttons stay reachable.
 - Deliberately **not** implemented: a responsive adjustment of the fixed 70px row height (see
-  item 5 — `ROW_HEIGHT_PX` in `app.js`). A smaller mobile row height would collide with the
+  item 5 — `ROW_HEIGHT_PX` in `render.js`). A smaller mobile row height would collide with the
   pixel calculation for the sub-raster inset unless `ROW_HEIGHT_PX` were also read dynamically
   from the actually rendered value — a deliberately simple trade-off left unaddressed for now.
 
@@ -373,7 +380,7 @@ Applying a preset/grid:
   edge of its `<th>` (`.col-resize-handle`, `position: absolute` at the column edge).
   Dragging sets an explicit `width` on the `<th>` via a mouse drag — under `table-layout:
   fixed`, that determines the width of the whole column (header and data cells). A minimum
-  width (`MIN_COL_WIDTH = 60px` in `app.js`) prevents a column from collapsing to 0. Day
+  width (`MIN_COL_WIDTH = 60px` in `columns.js`) prevents a column from collapsing to 0. Day
   columns that haven't been manually resized keep sharing the remaining space automatically
   and evenly (unchanged behavior from item 17).
 - **Persistence:** the time column's width lives as `plan.timeColWidth` (a number, or `null`
@@ -435,9 +442,9 @@ Applying a preset/grid:
   tokens (`--bg`, `--surface`, `--border`, `--text`, `--text-muted`, `--accent`, `--danger`,
   `--warn`, `--shadow`) are redefined for dark — once under
   `@media (prefers-color-scheme: dark)` (only when `data-theme="light"` isn't explicitly
-  set), and once under `:root[data-theme="dark"]` (forces dark regardless of the OS). `app.js`
-  only sets/removes the `data-theme` attribute on `<html>` (`applyTheme()`), no class
-  toggling or similar.
+  set), and once under `:root[data-theme="dark"]` (forces dark regardless of the OS). The app
+  only sets/removes the `data-theme` attribute on `<html>` (`applyTheme()` in `render.js`), no
+  class toggling or similar.
 - **Derived shades instead of duplicated light/dark values:** colors that are really just a
   tint of a primitive token (e.g. the light background of filled cells, the secondary-button
   surface, the time-column background) are defined once, in the base `:root`, as
@@ -543,7 +550,7 @@ Applying a preset/grid:
   `preventDefault()`) from the very first touch would make that impossible — every attempt to
   scroll past the table would instead start a selection.
 - **Long-press to arm, then drag:** touching a cell starts a 350ms timer
-  (`LONG_PRESS_MS` in `app.js`) instead of immediately reacting. If the finger moves more than
+  (`LONG_PRESS_MS` in `selection.js`) instead of immediately reacting. If the finger moves more than
   `TOUCH_MOVE_CANCEL_PX` (10px) before the timer fires, that's a scroll swipe, not a
   long-press — the timer is cancelled and nothing else happens, so native scrolling is never
   interfered with. If the timer fires undisturbed, drag-select mode arms (the anchor cell
@@ -611,7 +618,7 @@ Applying a preset/grid:
     relied entirely on `table-layout: fixed` inheriting the column's width from the header.
     Firefox has a bug where a sticky table cell's width collapses to content size on horizontal
     scroll unless it has its own explicit width rather than only an inherited one. Fix:
-    `timeTd.style.width` in `app.js` now mirrors `timeColEl.style.width` exactly (both driven by
+    `timeTd.style.width` in `render.js` now mirrors `timeColEl.style.width` exactly (both driven by
     `p.timeColWidth`), so `.time-cell` always has the same explicit width as `.time-col`, the
     same way the position fix made it the same explicit `position: sticky` element type. The
     e2e test now also asserts every row's width stays unchanged after scrolling and matches the

@@ -1,29 +1,16 @@
 import {
-  cellKey,
   generateRasterTimes,
   parseTimeToMinutes,
-  parseTimeRangeToMinutes,
   TIME_PRESETS,
   computeEntryUpdate,
   computeSubRangeInset,
   mergeTimes,
   requiredRowCount,
-  getEntrySpan,
-  getCellRenderInfo,
-  computeSelectionRange,
+  cellKey,
   findOverlappingKeys,
   applyEntryToAllDays,
-  moveEntry,
   rowHasEntries,
   removeRow,
-  findAnchorRow,
-  dayHasEntries,
-  removeDayEntries,
-  renameDayEntries,
-  isDayNameTaken,
-  renameDayWidth,
-  removeDayWidth,
-  translateDefaultDayNames,
 } from "./logic.js";
 import { serializePlan, parsePlanImport, serializeAllPlans, parseAllPlansImport } from "./io.js";
 import {
@@ -43,19 +30,13 @@ import {
   createEmptyPlan,
   INITIAL_ROW_COUNT,
 } from "./store.js";
-import {
-  DAYS_BY_LANGUAGE,
-  DAYS_SHORT_BY_LANGUAGE,
-  DEFAULT_LANGUAGE,
-  WEEKDAYS_BY_LANGUAGE,
-  detectDefaultLanguage,
-  translate,
-} from "./i18n.js";
+import { DAYS_BY_LANGUAGE, DEFAULT_LANGUAGE, detectDefaultLanguage, translate } from "./i18n.js";
+import { createRenderer, focusAndSelect } from "./render.js";
+import { createSelectionController } from "./selection.js";
+import { createColumnsController } from "./columns.js";
 
 (() => {
-  const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
   const NOW_HIGHLIGHT_INTERVAL_MS = 30000;
-  const MIN_COL_WIDTH = 60;
   const TOAST_DURATION_MS = 2500;
 
   let store = loadStore(window.localStorage, detectDefaultLanguage(navigator.language));
@@ -114,18 +95,6 @@ import {
   const rasterEnd = document.getElementById("rasterEnd");
 
   let activeSelection = null; // { day, rowStart, rowEnd, isNewRange }
-  // mode: "select" (dragging from an empty cell to define a new entry's
-  // range) or "move" (dragging an existing entry to relocate it) — see
-  // wireCellSelection. currentDay only changes for "move" (a selection drag
-  // stays within the day column it started in; a move can cross columns).
-  let dragState = null; // { mode, day, anchorRow, currentDay, currentRow, span }
-  // Entry duplication (copy icon or Ctrl+C, then a click to place — see
-  // wireCellSelection/the keydown listener below). hoveredCell tracks
-  // which cell the mouse is currently over, purely so Ctrl+C has something
-  // to act on (there's no other notion of "focus" on a cell in this app).
-  let clipboardEntry = null;
-  let hoveredCell = null; // { day, row } | null
-  let pasteArmed = false;
 
   function plan() {
     return getActivePlan(store);
@@ -162,7 +131,7 @@ import {
     store.plans[undoSnapshot.planId] = undoSnapshot.plan;
     undoSnapshot = null;
     persist();
-    renderAll();
+    renderer.renderAll();
     showToast(t("undoToast"));
   }
 
@@ -177,802 +146,68 @@ import {
     toastHideTimer = setTimeout(() => toastEl.classList.add("hidden"), TOAST_DURATION_MS);
   }
 
-  function rainbowPalette() {
-    const styles = getComputedStyle(document.documentElement);
-    const colors = [];
-    for (let i = 1; i <= 7; i++) {
-      const v = styles.getPropertyValue(`--day-${i}`).trim();
-      if (v) colors.push(v);
-    }
-    return colors.length ? colors : ["#8fb8ff"];
-  }
-  const RAINBOW = rainbowPalette();
-
-  // --- Per-entry color ------------------------------------------------------
-
-  // Entries can be tinted with one of the app's own rainbow hues (the same
-  // ones already used for day headers) instead of inventing a separate
-  // palette — keeps the visual language consistent and needs no color
-  // picker UI. Swatches are built once (static content); "selected" state
-  // just tracks which one is currently active while the modal is open.
-  let selectedEntryColor = ""; // "" = no color (the default, neutral look)
-
-  function buildColorSwatches() {
-    colorSwatchesEl.innerHTML = "";
-
-    const noneBtn = document.createElement("button");
-    noneBtn.type = "button";
-    noneBtn.className = "color-swatch color-swatch-none";
-    noneBtn.dataset.color = "";
-    noneBtn.dataset.i18nTitle = "colorNoneTitle";
-    noneBtn.dataset.i18nAriaLabel = "colorNoneTitle";
-    noneBtn.addEventListener("click", () => selectEntryColor(""));
-    colorSwatchesEl.appendChild(noneBtn);
-
-    RAINBOW.forEach((color) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "color-swatch";
-      btn.style.background = color;
-      btn.dataset.color = color;
-      btn.addEventListener("click", () => selectEntryColor(color));
-      colorSwatchesEl.appendChild(btn);
-    });
-  }
-
-  function selectEntryColor(color) {
-    selectedEntryColor = color;
-    colorSwatchesEl.querySelectorAll(".color-swatch").forEach((btn) => {
-      btn.classList.toggle("selected", btn.dataset.color === color);
-    });
-  }
-
-  // Only a still-default weekday name (exact match against the current
-  // language's defaults, same rule translateDefaultDayNames uses) has a
-  // language-correct abbreviation; a custom/renamed column just keeps its
-  // full text and wraps as usual — there's no good way to guess a short
-  // form for arbitrary user text.
-  function shortDayLabel(day, language) {
-    const idx = DAYS_BY_LANGUAGE[language]?.indexOf(day);
-    if (idx === undefined || idx === -1) return day;
-    return DAYS_SHORT_BY_LANGUAGE[language][idx];
-  }
-
-  // --- i18n ---------------------------------------------------------------
-
-  function applyStaticTranslations() {
-    document.documentElement.lang = getLanguage(store);
-    document.querySelectorAll("[data-i18n]").forEach((el) => {
-      el.textContent = t(el.dataset.i18n);
-    });
-    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
-      el.placeholder = t(el.dataset.i18nPlaceholder);
-    });
-    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
-      el.title = t(el.dataset.i18nTitle);
-    });
-    document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
-      el.setAttribute("aria-label", t(el.dataset.i18nAriaLabel));
-    });
-    languageSwitcher.value = getLanguage(store);
-  }
-
-  // A "just look at and use the schedule" mode: hides the toolbar, the plan
-  // +/- buttons, the about button, and the inline row/column-remove icons —
-  // collapsed narrower than 600px, only the title is left — and actually
-  // locks editing: no new entries, no renaming the plan title or day columns.
-  // Switching plans, theme, language, and printing stay available since
-  // they don't mutate the current plan's content.
-  function applyEditLocked() {
-    const locked = getEditLocked(store);
-    document.body.classList.toggle("edit-locked", locked);
-    editLockBtn.textContent = locked ? "🔒" : "🔓";
-    const titleKey = locked ? "unlockEditingTitle" : "lockEditingTitle";
-    editLockBtn.title = t(titleKey);
-    editLockBtn.setAttribute("aria-label", t(titleKey));
-    planTitleEl.contentEditable = locked ? "false" : "true";
-    headerRow.querySelectorAll(".day-name").forEach((el) => {
-      el.contentEditable = locked ? "false" : "true";
-    });
-  }
-
-  // "system" leaves data-theme unset so the @media (prefers-color-scheme)
-  // rules in style.css decide; "light"/"dark" force one via the attribute
-  // regardless of the OS preference (see style.css for the token overrides).
-  function applyTheme() {
-    const theme = getTheme(store);
-    if (theme === "system") {
-      document.documentElement.removeAttribute("data-theme");
-    } else {
-      document.documentElement.dataset.theme = theme;
-    }
-    themeSwitcher.value = theme;
-  }
-
-  // --- Rendering --------------------------------------------------------
-
-  function renderHeader() {
-    const p = plan();
-    headerRow.querySelectorAll("th.day-col, th.add-day-col").forEach((el) => el.remove());
-
-    timeColEl.style.width = p.timeColWidth ? `${p.timeColWidth}px` : "";
-
-    p.days.forEach((day, index) => {
-      const th = document.createElement("th");
-      th.className = "day-col";
-      th.style.background = RAINBOW[index % RAINBOW.length];
-      if (p.columnWidths[day]) th.style.width = `${p.columnWidths[day]}px`;
-
-      const inner = document.createElement("div");
-      inner.className = "day-col-inner";
-
-      const nameEl = document.createElement("span");
-      nameEl.className = "day-name";
-      nameEl.contentEditable = getEditLocked(store) ? "false" : "true";
-      nameEl.spellcheck = false;
-      nameEl.textContent = day;
-      nameEl.title = t("renameHint");
-      wireDayRename(nameEl, index);
-      inner.appendChild(nameEl);
-
-      // Shown instead of nameEl only below a width breakpoint (style.css),
-      // so a default weekday name doesn't wrap into an unreadable stack of
-      // single words on a narrow screen. Not editable itself — tapping it
-      // reveals and focuses the real (full-name) nameEl above.
-      const shortEl = document.createElement("span");
-      shortEl.className = "day-name-short";
-      shortEl.setAttribute("aria-hidden", "true");
-      shortEl.textContent = shortDayLabel(day, getLanguage(store));
-      shortEl.addEventListener("click", () => {
-        if (getEditLocked(store)) return;
-        focusAndSelect(nameEl);
-      });
-      inner.appendChild(shortEl);
-
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "col-remove-btn";
-      removeBtn.title = t("removeDayColTitle");
-      removeBtn.setAttribute("aria-label", t("removeDayColTitle"));
-      removeBtn.textContent = "×";
-      removeBtn.disabled = p.days.length <= 1;
-      removeBtn.addEventListener("click", () => removeDayColumn(index));
-      inner.appendChild(removeBtn);
-
-      th.appendChild(inner);
-
-      const resizeHandle = document.createElement("div");
-      resizeHandle.className = "col-resize-handle";
-      resizeHandle.setAttribute("aria-hidden", "true");
-      wireColumnResize(resizeHandle, { kind: "day", th, day });
-      th.appendChild(resizeHandle);
-
-      headerRow.appendChild(th);
-    });
-
-    const addTh = document.createElement("th");
-    addTh.className = "add-day-col";
-    const addBtn = document.createElement("button");
-    addBtn.type = "button";
-    addBtn.className = "icon-btn";
-    addBtn.title = t("addDayColTitle");
-    addBtn.setAttribute("aria-label", t("addDayColTitle"));
-    addBtn.textContent = "+";
-    addBtn.addEventListener("click", addDayColumn);
-    addTh.appendChild(addBtn);
-    headerRow.appendChild(addTh);
-  }
-
-  function renderPlanSwitcher() {
-    planSwitcher.innerHTML = "";
-    store.planOrder.forEach((id) => {
-      const p = store.plans[id];
-      if (!p) return;
-      const opt = document.createElement("option");
-      opt.value = id;
-      opt.textContent = p.name;
-      if (id === store.activePlanId) opt.selected = true;
-      planSwitcher.appendChild(opt);
-    });
-    deletePlanBtn.disabled = store.planOrder.length <= 1;
-  }
-
-  function renderPlanTitle() {
-    const p = plan();
-    if (planTitleEl.textContent !== p.name) {
-      planTitleEl.textContent = p.name;
-    }
-    document.title = `${p.name} · ${t("appTitleSuffix")}`;
-  }
-
-  function renderBody() {
-    const p = plan();
-    planBody.innerHTML = "";
-
-    for (let row = 0; row < p.rowCount; row++) {
-      const tr = document.createElement("tr");
-
-      const timeTd = document.createElement("td");
-      timeTd.className = "time-cell";
-      // Mirrors timeColEl.style.width (renderHeader, below) exactly. Below
-      // 600px this cell is position: sticky (style.css) — table-layout:
-      // fixed normally keeps every cell in a column the same width without
-      // needing this, but Firefox has a bug where a sticky table cell's
-      // width collapses to its content on horizontal scroll unless it has
-      // its own explicit width, rather than only inheriting the column's.
-      // .time-col (the header, which sets its own width directly) never
-      // had this problem; only .time-cell, which never set one, did.
-      timeTd.style.width = p.timeColWidth ? `${p.timeColWidth}px` : "";
-
-      // The flex layout for the label + remove button lives on this inner
-      // wrapper rather than directly on timeTd itself, for unrelated
-      // reasons (see .time-cell-inner in style.css).
-      const timeInner = document.createElement("div");
-      timeInner.className = "time-cell-inner";
-      timeTd.appendChild(timeInner);
-
-      const timeLabel = document.createElement("span");
-      timeLabel.className = "time-label";
-      timeLabel.contentEditable = "true";
-      timeLabel.spellcheck = false;
-      timeLabel.dataset.placeholder = t("timeInputPlaceholder");
-      timeLabel.textContent = p.times[row] || "";
-      timeLabel.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          timeLabel.blur();
-        }
-      });
-      // Snapshotted once per edit session (on focus), not per keystroke —
-      // "input" fires on every character, and undoing a whole retyped
-      // label back to its pre-edit text in one Ctrl+Z is the useful
-      // granularity, not one letter at a time.
-      timeLabel.addEventListener("focus", () => {
-        snapshotForUndo();
-      });
-      timeLabel.addEventListener("input", () => {
-        p.times[row] = timeLabel.textContent;
-        persist();
-      });
-      timeInner.appendChild(timeLabel);
-
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "row-remove-btn";
-      removeBtn.title = t("removeRowTitle");
-      removeBtn.setAttribute("aria-label", t("removeRowTitle"));
-      removeBtn.textContent = "×";
-      removeBtn.addEventListener("click", () => removeRowAt(row));
-      timeInner.appendChild(removeBtn);
-
-      tr.appendChild(timeTd);
-
-      p.days.forEach((day) => {
-        const info = getCellRenderInfo(row, day, p.entries);
-        if (info.hidden) return;
-
-        const td = document.createElement("td");
-        td.className = "data-cell";
-        td.dataset.key = info.key;
-        td.dataset.row = String(row);
-        td.dataset.day = day;
-        if (info.span > 1) td.rowSpan = info.span;
-
-        const rowLabels = p.times.slice(row, row + info.span);
-        renderCellContent(td, info.entry, rowLabels, info.span);
-        wireCellSelection(td, row, day);
-        tr.appendChild(td);
-      });
-
-      planBody.appendChild(tr);
-    }
-
-    applyNowHighlight();
-  }
-
-  function renderCellContent(td, entry, rowLabels, span) {
-    td.innerHTML = "";
-    const entryBox = document.createElement("div");
-    entryBox.className = "entry-box";
-    td.appendChild(entryBox);
-
-    if (entry && entry.title) {
-      td.classList.add("filled");
-
-      const copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "entry-copy-btn";
-      copyBtn.textContent = "⧉";
-      copyBtn.title = t("copyEntryTitle");
-      copyBtn.setAttribute("aria-label", t("copyEntryTitle"));
-      copyBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-      copyBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        copyEntry(entry);
-      });
-      entryBox.appendChild(copyBtn);
-
-      if (entry.color) {
-        td.classList.add("has-color");
-        td.style.setProperty("--entry-hue", entry.color);
-      }
-
-      if (entry.startTime || entry.endTime) {
-        const badge = document.createElement("p");
-        badge.className = "entry-time-badge";
-        badge.textContent = `${entry.startTime || "?"}–${entry.endTime || "?"}`;
-        entryBox.appendChild(badge);
-
-        // Insets the box itself (not just its content) within the covered
-        // rows, so a partially-filled raster row visually starts/ends where
-        // the entry's real time does, instead of a full-height box with
-        // padding pushing the text down inside it.
-        const inset = computeSubRangeInset(rowLabels, entry.startTime, entry.endTime);
-        if (inset) {
-          const totalHeight = ROW_HEIGHT_PX * span;
-          entryBox.style.top = `${Math.round(totalHeight * inset.topFraction)}px`;
-          entryBox.style.bottom = `${Math.round(totalHeight * inset.bottomFraction)}px`;
-        }
-      }
-
-      const title = document.createElement("p");
-      title.className = "entry-title";
-      title.textContent = entry.title;
-      entryBox.appendChild(title);
-
-      if (entry.description) {
-        const desc = document.createElement("p");
-        desc.className = "entry-description";
-        desc.textContent = entry.description;
-        entryBox.appendChild(desc);
-      }
-
-      if (entry.link) {
-        const link = document.createElement("a");
-        link.className = "entry-link";
-        link.href = entry.link;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = t("linkText");
-        link.addEventListener("mousedown", (e) => e.stopPropagation());
-        link.addEventListener("click", (e) => e.stopPropagation());
-        entryBox.appendChild(link);
-      }
-    } else {
-      td.classList.remove("filled");
-      const placeholder = document.createElement("span");
-      placeholder.className = "cell-placeholder";
-      placeholder.textContent = "+";
-      entryBox.appendChild(placeholder);
-    }
-  }
-
-  function renderAll() {
-    applyStaticTranslations();
-    applyEditLocked();
-    applyTheme();
-    renderHeader();
-    renderPlanSwitcher();
-    renderPlanTitle();
-    renderBody();
-  }
-
-  // --- "Now" highlight ---------------------------------------------------
-
-  // Shared by the highlight below and the "jump to now" button: which row
-  // (by the current time-of-day against the plan's own raster) and day
-  // column (by today's weekday name) count as "now" right now.
-  function computeNowPosition() {
-    const p = plan();
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const weekdayNames = WEEKDAYS_BY_LANGUAGE[getLanguage(store)];
-    const todayName = weekdayNames[now.getDay()];
-
-    let currentRow = -1;
-    for (let row = 0; row < p.rowCount; row++) {
-      const range = parseTimeRangeToMinutes(p.times[row]);
-      if (range && nowMinutes >= range.start && nowMinutes < range.end) {
-        currentRow = row;
-        break;
-      }
-    }
-
-    const dayIndex = p.days.indexOf(todayName);
-    return { currentRow, todayName, dayIndex };
-  }
-
-  function applyNowHighlight() {
-    headerRow.querySelectorAll(".current-day-col").forEach((el) => el.classList.remove("current-day-col"));
-    planBody.querySelectorAll(".current-row").forEach((el) => el.classList.remove("current-row"));
-    planBody.querySelectorAll(".current-cell").forEach((el) => el.classList.remove("current-cell"));
-
-    const { currentRow, todayName, dayIndex } = computeNowPosition();
-    if (currentRow === -1) return;
-
-    const timeRow = planBody.children[currentRow];
-    timeRow?.querySelector(".time-cell")?.classList.add("current-row");
-
-    if (dayIndex === -1) return;
-
-    const headerCells = headerRow.querySelectorAll("th.day-col");
-    headerCells[dayIndex]?.classList.add("current-day-col");
-
-    const anchorRow = findAnchorRow(currentRow, todayName, plan().entries);
-    if (anchorRow === null) return;
-    const anchorKey = cellKey(anchorRow, todayName);
-    planBody.querySelectorAll(".data-cell").forEach((td) => {
-      if (td.dataset.key === anchorKey) td.classList.add("current-cell");
-    });
-  }
-
-  setInterval(applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
-
-  // --- "Jump to now" --------------------------------------------------------
-
-  // Scrolls the current row/day into view — handy on a long plan, or on
-  // mobile after scrolling far away. Falls back gracefully: if only the row
-  // or only the day is known (e.g. today isn't a column in this plan, or no
-  // raster row covers the current time), it scrolls to whichever is known
-  // instead of doing nothing.
-  function jumpToNow() {
-    const { currentRow, todayName, dayIndex } = computeNowPosition();
-    let target = null;
-    if (currentRow !== -1 && dayIndex !== -1) {
-      target = planBody.querySelector(`td[data-row="${currentRow}"][data-day="${CSS.escape(todayName)}"]`);
-    } else if (currentRow !== -1) {
-      target = planBody.children[currentRow]?.querySelector(".time-cell");
-    } else if (dayIndex !== -1) {
-      target = planBody.querySelector(`td[data-day="${CSS.escape(todayName)}"]`);
-    }
-    target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-  }
-
-  jumpToNowBtn.addEventListener("click", jumpToNow);
-
-  // --- Drag-to-select ranges, and drag-to-move an existing entry ---------
-
-  function wireCellSelection(td, row, day) {
-    td.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      if (getEditLocked(store)) return;
-      e.preventDefault();
-
-      if (pasteArmed) {
-        pasteArmed = false;
-        document.body.classList.remove("paste-armed");
-        pasteEntryAt(day, row);
-        return;
-      }
-
-      const existing = plan().entries[cellKey(row, day)];
-      if (existing) {
-        dragState = { mode: "move", day, anchorRow: row, currentDay: day, currentRow: row, span: getEntrySpan(existing) };
-        document.body.classList.add("no-select");
-        highlightMoveTarget(day, row, dragState.span);
-      } else {
-        dragState = { mode: "select", day, anchorRow: row, currentDay: day, currentRow: row };
-        document.body.classList.add("no-select");
-        highlightSelection(day, row, row);
-      }
-    });
-
-    td.addEventListener("mouseenter", () => {
-      hoveredCell = { day, row };
-      if (!dragState) return;
-      if (dragState.mode === "move") {
-        dragState.currentDay = day;
-        dragState.currentRow = row;
-        highlightMoveTarget(day, row, dragState.span);
-        return;
-      }
-      if (dragState.day !== day) return;
-      dragState.currentRow = row;
-      highlightSelection(dragState.day, dragState.anchorRow, row);
-    });
-
-    td.addEventListener("mouseleave", () => {
-      if (hoveredCell && hoveredCell.day === day && hoveredCell.row === row) hoveredCell = null;
-    });
-
-    wireCellSelectionTouch(td, row, day);
-  }
-
-  function copyEntry(entry) {
-    clipboardEntry = structuredClone(entry);
-    showToast(t("copyToast"));
-  }
-
-  // Places a copy of clipboardEntry anchored at (row, day) — same
-  // overwrite rule as a normal save (any different entry the range now
-  // overlaps is replaced), and the same row-clamping a drag-move (item 26)
-  // already does so a multi-row entry pasted near the bottom still fits
-  // entirely within the grid instead of hanging off the edge.
-  function pasteEntryAt(day, row) {
-    if (!clipboardEntry) return;
-    const p = plan();
-    const span = getEntrySpan(clipboardEntry);
-    const clampedRow = Math.max(0, Math.min(row, p.rowCount - span));
-    const rowEnd = clampedRow + span - 1;
-    snapshotForUndo();
-    findOverlappingKeys(p.entries, day, clampedRow, rowEnd).forEach((k) => delete p.entries[k]);
-    const { span: _span, ...rest } = clipboardEntry;
-    p.entries[cellKey(clampedRow, day)] = span > 1 ? { ...rest, span } : rest;
-    persist();
-    renderBody();
-    showToast(t("pasteToast"));
-  }
-
-  // Touch has no hover, so a plain per-cell "mouseenter" can't track a
-  // finger dragging across cells — and a touchmove listener that always
-  // preventDefault()s from the first touch would break ordinary page
-  // scrolling over the table. Long-press to arm drag-select instead: a
-  // quick tap/swipe never triggers the timer below, so it falls through to
-  // the browser's own synthetic mouse events (mousedown/mouseup) already
-  // wired above, which already do the right thing for a single tap. Only
-  // once the press has held still past LONG_PRESS_MS do we take over
-  // touchmove (with preventDefault) to track the drag.
-  const LONG_PRESS_MS = 350;
-  const TOUCH_MOVE_CANCEL_PX = 10;
-  let touchPressTimer = null;
-  let touchPressStart = null; // { x, y }
-  let touchDragActive = false;
-
-  function wireCellSelectionTouch(td, row, day) {
-    td.addEventListener(
-      "touchstart",
-      (e) => {
-        if (e.touches.length !== 1) return;
-        if (getEditLocked(store)) return;
-        const touch = e.touches[0];
-        touchPressStart = { x: touch.clientX, y: touch.clientY };
-        touchDragActive = false;
-        clearTimeout(touchPressTimer);
-        touchPressTimer = setTimeout(() => {
-          touchDragActive = true;
-          const existing = plan().entries[cellKey(row, day)];
-          if (existing) {
-            dragState = { mode: "move", day, anchorRow: row, currentDay: day, currentRow: row, span: getEntrySpan(existing) };
-            highlightMoveTarget(day, row, dragState.span);
-          } else {
-            dragState = { mode: "select", day, anchorRow: row, currentDay: day, currentRow: row };
-            highlightSelection(day, row, row);
-          }
-          document.body.classList.add("no-select");
-          navigator.vibrate?.(15);
-        }, LONG_PRESS_MS);
-      },
-      { passive: true }
-    );
-  }
-
-  function cellFromTouchPoint(x, y) {
-    return document.elementFromPoint(x, y)?.closest("td.data-cell") || null;
-  }
-
-  document.addEventListener(
-    "touchmove",
-    (e) => {
-      if (touchDragActive && dragState) {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const cell = cellFromTouchPoint(touch.clientX, touch.clientY);
-        if (!cell) return;
-        if (dragState.mode === "move") {
-          dragState.currentDay = cell.dataset.day;
-          dragState.currentRow = Number(cell.dataset.row);
-          highlightMoveTarget(dragState.currentDay, dragState.currentRow, dragState.span);
-          return;
-        }
-        if (cell.dataset.day !== dragState.day) return;
-        dragState.currentRow = Number(cell.dataset.row);
-        highlightSelection(dragState.day, dragState.anchorRow, dragState.currentRow);
-        return;
-      }
-      if (touchPressTimer && touchPressStart) {
-        const touch = e.touches[0];
-        const moved = Math.hypot(touch.clientX - touchPressStart.x, touch.clientY - touchPressStart.y);
-        if (moved > TOUCH_MOVE_CANCEL_PX) {
-          clearTimeout(touchPressTimer);
-          touchPressTimer = null;
-          touchPressStart = null;
-        }
-      }
+  // --- Module wiring --------------------------------------------------------
+  // render.js needs callbacks into selection.js and columns.js to wire the
+  // elements it creates, while selection.js and columns.js need to trigger
+  // a re-render after they mutate the plan — a genuine circular dependency
+  // between the three. Broken here the usual way for plain closures: the
+  // `renderer` reference below is only read inside these thunks, and only
+  // once a real user interaction calls back into selection/columns — by
+  // which point `renderer` has long since been assigned.
+  let renderer;
+
+  const selection = createSelectionController({
+    planBody,
+    plan,
+    store,
+    t,
+    persist,
+    snapshotForUndo,
+    showToast,
+    renderBody: () => renderer.renderBody(),
+    openEntryModal,
+  });
+
+  const columns = createColumnsController({
+    headerRow,
+    plan,
+    t,
+    persist,
+    snapshotForUndo,
+    renderHeader: () => renderer.renderHeader(),
+    renderBody: () => renderer.renderBody(),
+    focusAndSelect,
+  });
+
+  renderer = createRenderer({
+    elements: {
+      headerRow,
+      timeColEl,
+      planBody,
+      planSwitcher,
+      deletePlanBtn,
+      planTitleEl,
+      languageSwitcher,
+      editLockBtn,
+      themeSwitcher,
+      colorSwatchesEl,
     },
-    { passive: false }
-  );
-
-  function endTouchDrag() {
-    clearTimeout(touchPressTimer);
-    touchPressTimer = null;
-    touchPressStart = null;
-    if (!touchDragActive) return;
-    touchDragActive = false;
-    if (!dragState) return;
-    const state = dragState;
-    dragState = null;
-    document.body.classList.remove("no-select");
-    clearHighlight();
-    if (state.mode === "move") {
-      finalizeMove(state);
-    } else {
-      finalizeSelection(state.day, state.anchorRow, state.currentRow);
-    }
-  }
-
-  document.addEventListener("touchend", endTouchDrag);
-  document.addEventListener("touchcancel", () => {
-    clearTimeout(touchPressTimer);
-    touchPressTimer = null;
-    touchPressStart = null;
-    if (touchDragActive) {
-      touchDragActive = false;
-      dragState = null;
-      document.body.classList.remove("no-select");
-      clearHighlight();
-    }
+    plan,
+    store,
+    t,
+    wireCellSelection: selection.wireCellSelection,
+    copyEntry: selection.copyEntry,
+    wireDayRename: columns.wireDayRename,
+    addDayColumn: columns.addDayColumn,
+    removeDayColumn: columns.removeDayColumn,
+    wireColumnResize: columns.wireColumnResize,
+    removeRowAt,
+    snapshotForUndo,
+    persist,
   });
 
-  function clearHighlight() {
-    planBody.querySelectorAll(".data-cell.selecting").forEach((el) => el.classList.remove("selecting"));
-    planBody.querySelectorAll(".data-cell.drop-target").forEach((el) => el.classList.remove("drop-target"));
-  }
-
-  function highlightSelection(day, anchorRow, currentRow) {
-    clearHighlight();
-    const { rowStart, rowEnd } = computeSelectionRange(anchorRow, currentRow);
-    planBody.querySelectorAll(".data-cell").forEach((td) => {
-      if (td.dataset.day !== day) return;
-      const r = Number(td.dataset.row);
-      const span = td.rowSpan || 1;
-      if (r + span - 1 >= rowStart && r <= rowEnd) {
-        td.classList.add("selecting");
-      }
-    });
-  }
-
-  // Previews where a dragged entry would land if dropped on (day, row) right
-  // now — clamped the same way moveEntry itself clamps on drop, so the
-  // preview never lies about a span getting pulled back from the bottom
-  // edge of the grid.
-  function highlightMoveTarget(day, row, span) {
-    clearHighlight();
-    const p = plan();
-    const clampedRow = Math.max(0, Math.min(row, p.rowCount - span));
-    planBody.querySelectorAll(".data-cell").forEach((td) => {
-      if (td.dataset.day !== day) return;
-      const r = Number(td.dataset.row);
-      const cellSpan = td.rowSpan || 1;
-      if (r + cellSpan - 1 >= clampedRow && r <= clampedRow + span - 1) {
-        td.classList.add("drop-target");
-      }
-    });
-  }
-
-  document.addEventListener("mouseup", () => {
-    if (!dragState) return;
-    const state = dragState;
-    dragState = null;
-    document.body.classList.remove("no-select");
-    clearHighlight();
-    if (state.mode === "move") {
-      finalizeMove(state);
-    } else {
-      finalizeSelection(state.day, state.anchorRow, state.currentRow);
-    }
-  });
-
-  // A drop back on the entry's own starting cell isn't a move — it's the
-  // drag-to-move equivalent of a plain click, so it opens the entry for
-  // editing instead, the same as a no-drag click on a filled cell already
-  // does via finalizeSelection below.
-  function finalizeMove({ day, anchorRow, currentDay, currentRow }) {
-    const p = plan();
-    if (currentDay === day && currentRow === anchorRow) {
-      const existing = p.entries[cellKey(anchorRow, day)];
-      if (existing) {
-        openEntryModal({
-          day,
-          rowStart: anchorRow,
-          rowEnd: anchorRow + getEntrySpan(existing) - 1,
-          isNewRange: false,
-          entry: existing,
-        });
-      }
-      return;
-    }
-    // Mirrors moveEntry's own clamping/overlap logic (logic.js) just to
-    // find out, before the move happens, whether it's about to silently
-    // replace a different entry — moveEntry itself doesn't report that,
-    // it just does it (same overwrite rule as any other save, item 4).
-    const fromKey = cellKey(anchorRow, day);
-    const movingEntry = p.entries[fromKey];
-    const span = getEntrySpan(movingEntry);
-    const clampedRow = Math.max(0, Math.min(currentRow, p.rowCount - span));
-    const entriesWithoutSource = { ...p.entries };
-    delete entriesWithoutSource[fromKey];
-    const overwrittenTitles = findOverlappingKeys(entriesWithoutSource, currentDay, clampedRow, clampedRow + span - 1)
-      .map((k) => entriesWithoutSource[k].title)
-      .filter(Boolean);
-
-    snapshotForUndo();
-    p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
-    persist();
-    renderBody();
-
-    if (overwrittenTitles.length === 1) {
-      showToast(t("dragOverwriteToastOne", { title: overwrittenTitles[0] }));
-    } else if (overwrittenTitles.length > 1) {
-      showToast(t("dragOverwriteToastMany", { count: overwrittenTitles.length }));
-    }
-  }
-
-  function finalizeSelection(day, anchorRow, currentRow) {
-    const { rowStart, rowEnd } = computeSelectionRange(anchorRow, currentRow);
-    const p = plan();
-    const anchorKey = cellKey(rowStart, day);
-    const existing = p.entries[anchorKey];
-
-    if (rowStart === rowEnd && existing) {
-      openEntryModal({
-        day,
-        rowStart,
-        rowEnd: rowStart + getEntrySpan(existing) - 1,
-        isNewRange: false,
-        entry: existing,
-      });
-      return;
-    }
-
-    openEntryModal({ day, rowStart, rowEnd, isNewRange: true, entry: null });
-  }
-
-  // --- Manual column resize ------------------------------------------------
-  // Lets the time column (and day columns) be widened past their default so
-  // raster labels like "16:40–18:10" aren't clipped; see the .time-label
-  // wrap-at-hyphen fallback in style.css for when resizing alone isn't done.
-
-  let colResizeState = null; // { target, th, startX, startWidth }
-
-  function wireColumnResize(handle, target) {
-    if (!handle) return;
-    handle.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      colResizeState = {
-        target,
-        th: target.th,
-        startX: e.clientX,
-        startWidth: target.th.getBoundingClientRect().width,
-      };
-      document.body.classList.add("no-select");
-    });
-  }
-
-  document.addEventListener("mousemove", (e) => {
-    if (!colResizeState) return;
-    const delta = e.clientX - colResizeState.startX;
-    const newWidth = Math.max(MIN_COL_WIDTH, Math.round(colResizeState.startWidth + delta));
-    colResizeState.th.style.width = `${newWidth}px`;
-  });
-
-  document.addEventListener("mouseup", () => {
-    if (!colResizeState) return;
-    const { target, th } = colResizeState;
-    const width = Math.max(MIN_COL_WIDTH, Math.round(th.getBoundingClientRect().width));
-    colResizeState = null;
-    document.body.classList.remove("no-select");
-
-    const p = plan();
-    snapshotForUndo();
-    if (target.kind === "time") {
-      p.timeColWidth = width;
-    } else {
-      p.columnWidths[target.day] = width;
-    }
-    persist();
-  });
+  setInterval(renderer.applyNowHighlight, NOW_HIGHLIGHT_INTERVAL_MS);
+  jumpToNowBtn.addEventListener("click", renderer.jumpToNow);
 
   // --- Entry modal --------------------------------------------------------
 
@@ -1017,7 +252,7 @@ import {
     // isn't what this checkbox is for.
     applyAllDaysField.style.display = isNewRange ? "flex" : "none";
     applyAllDaysCheckbox.checked = false;
-    selectEntryColor(entry?.color || "");
+    renderer.selectEntryColor(entry?.color || "");
     deleteEntryBtn.style.display = entry ? "inline-block" : "none";
     modalTitleHeading.textContent = entry ? t("entryEditTitle") : t("entryAddTitle");
     modalRangeInfo.textContent = describeSelection(day, rowStart, rowEnd);
@@ -1042,14 +277,14 @@ import {
       fieldLink.value,
       fieldStartTime.value,
       fieldEndTime.value,
-      selectedEntryColor
+      renderer.getSelectedEntryColor()
     );
     const anchorKey = cellKey(rowStart, day);
 
     if (update && isNewRange && applyAllDaysCheckbox.checked) {
       p.entries = applyEntryToAllDays(p.entries, p.days, rowStart, rowEnd, update);
       persist();
-      renderBody();
+      renderer.renderBody();
       closeModal();
       return;
     }
@@ -1066,7 +301,7 @@ import {
     }
 
     persist();
-    renderBody();
+    renderer.renderBody();
     closeModal();
   }
 
@@ -1076,7 +311,7 @@ import {
     snapshotForUndo();
     delete plan().entries[cellKey(rowStart, day)];
     persist();
-    renderBody();
+    renderer.renderBody();
     closeModal();
   }
 
@@ -1114,7 +349,7 @@ import {
     p.rowCount = requiredRowCount(p.rowCount, newTimes.length);
     p.times = mergeTimes(p.times, newTimes);
     persist();
-    renderBody();
+    renderer.renderBody();
     closeTimeModal();
   }
 
@@ -1124,7 +359,7 @@ import {
     snapshotForUndo();
     plan().rowCount += 1;
     persist();
-    renderBody();
+    renderer.renderBody();
   }
 
   function removeRowAt(rowIndex) {
@@ -1141,7 +376,7 @@ import {
     p.times = result.times;
     p.entries = result.entries;
     persist();
-    renderBody();
+    renderer.renderBody();
   }
 
   function resetAll() {
@@ -1152,116 +387,7 @@ import {
     p.times = [];
     p.entries = {};
     persist();
-    renderBody();
-  }
-
-  // --- Day column management ---------------------------------------------
-
-  // Swaps a plan's still-default weekday column names to the new language,
-  // leaving any manually-renamed columns untouched (see
-  // translateDefaultDayNames in logic.js). Mutates the plan's days/entries/
-  // columnWidths in place, like the other day-column operations here.
-  function translatePlanDayNames(p, oldDefaults, newDefaults) {
-    const newDays = translateDefaultDayNames(p.days, oldDefaults, newDefaults);
-    newDays.forEach((newName, i) => {
-      const oldName = p.days[i];
-      if (newName === oldName) return;
-      p.entries = renameDayEntries(p.entries, oldName, newName);
-      p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
-    });
-    p.days = newDays;
-  }
-
-  function nextDefaultDayName(days) {
-    const base = t("newDayName");
-    let i = days.length + 1;
-    while (days.includes(`${base} ${i}`)) i += 1;
-    return `${base} ${i}`;
-  }
-
-  function addDayColumn() {
-    const p = plan();
-    snapshotForUndo();
-    p.days.push(nextDefaultDayName(p.days));
-    persist();
-    renderHeader();
-    renderBody();
-    const nameEls = headerRow.querySelectorAll(".day-name");
-    const newNameEl = nameEls[nameEls.length - 1];
-    focusAndSelect(newNameEl);
-  }
-
-  function removeDayColumn(index) {
-    const p = plan();
-    if (p.days.length <= 1) return;
-    const day = p.days[index];
-
-    if (dayHasEntries(day, p.entries)) {
-      if (!confirm(t("confirmRemoveDayWithEntries", { day }))) return;
-    }
-
-    snapshotForUndo();
-    p.days.splice(index, 1);
-    p.entries = removeDayEntries(p.entries, day);
-    p.columnWidths = removeDayWidth(p.columnWidths, day);
-    persist();
-    renderHeader();
-    renderBody();
-  }
-
-  function wireDayRename(nameEl, index) {
-    nameEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        nameEl.blur();
-      }
-    });
-
-    // Below the day-name-short breakpoint, nameEl itself is hidden until
-    // this "editing" class is set (style.css) — so tapping the short label
-    // above can reveal + focus it, and it hides again once done.
-    nameEl.addEventListener("focus", () => {
-      nameEl.closest(".day-col-inner")?.classList.add("editing");
-    });
-
-    nameEl.addEventListener("blur", () => {
-      nameEl.closest(".day-col-inner")?.classList.remove("editing");
-      const p = plan();
-      const oldName = p.days[index];
-      const newName = nameEl.textContent.trim();
-
-      if (!newName || newName === oldName) {
-        nameEl.textContent = oldName;
-        return;
-      }
-      if (isDayNameTaken(p.days, newName, index)) {
-        alert(t("alertDayNameTaken", { name: newName }));
-        nameEl.textContent = oldName;
-        return;
-      }
-
-      snapshotForUndo();
-      p.days[index] = newName;
-      p.entries = renameDayEntries(p.entries, oldName, newName);
-      p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
-      persist();
-      renderHeader();
-      renderBody();
-    });
-  }
-
-  function focusAndSelect(el) {
-    // A day name can be display:none below the day-name-short breakpoint
-    // until "editing" is set (style.css) — .focus() on a hidden element is
-    // a no-op, so reveal it first. No-op for anything that isn't inside a
-    // .day-col-inner (e.g. the plan title).
-    el.closest(".day-col-inner")?.classList.add("editing");
-    el.focus();
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+    renderer.renderBody();
   }
 
   // --- Plan management -------------------------------------------------
@@ -1340,14 +466,14 @@ import {
 
     importedPlans.forEach(addImportedPlan);
     persist();
-    renderAll();
+    renderer.renderAll();
   }
 
   // --- Event wiring -------------------------------------------------
 
   addRowBtn.addEventListener("click", addRow);
   resetBtn.addEventListener("click", resetAll);
-  wireColumnResize(timeColResizeHandle, { kind: "time", th: timeColEl });
+  columns.wireColumnResize(timeColResizeHandle, { kind: "time", th: timeColEl });
 
   printBtn.addEventListener("click", () => window.print());
   deleteEntryBtn.addEventListener("click", deleteEntry);
@@ -1382,13 +508,13 @@ import {
   themeSwitcher.addEventListener("change", () => {
     setTheme(store, themeSwitcher.value);
     persist();
-    applyTheme();
+    renderer.applyTheme();
   });
 
   editLockBtn.addEventListener("click", () => {
     setEditLocked(store, !getEditLocked(store));
     persist();
-    applyEditLocked();
+    renderer.applyEditLocked();
   });
 
   timeForm.addEventListener("submit", (e) => {
@@ -1419,10 +545,7 @@ import {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (pasteArmed) {
-        pasteArmed = false;
-        document.body.classList.remove("paste-armed");
-      }
+      selection.disarmPaste();
       if (!modalOverlay.classList.contains("hidden")) closeModal();
       if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
       if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
@@ -1435,26 +558,19 @@ import {
     }
     // Ctrl+C over a filled cell copies that entry; Ctrl+V arms "paste
     // mode" (a cursor change + body class) rather than pasting immediately
-    // — the next click on any cell places it there (see wireCellSelection's
-    // mousedown), mirroring drag-to-move's own "grab, then drop" gesture
-    // instead of needing the mouse to already be over the target cell at
-    // the moment of the shortcut.
+    // — the next click on any cell places it there (see selection.js's
+    // wireCellSelection), mirroring drag-to-move's own "grab, then drop"
+    // gesture instead of needing the mouse to already be over the target
+    // cell at the moment of the shortcut.
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
       if (isEditableFocus(document.activeElement)) return;
       if (getEditLocked(store)) return;
-      if (!hoveredCell) return;
-      const entry = plan().entries[cellKey(hoveredCell.row, hoveredCell.day)];
-      if (!entry) return;
-      e.preventDefault();
-      copyEntry(entry);
+      if (selection.copyHoveredEntry()) e.preventDefault();
     }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
       if (isEditableFocus(document.activeElement)) return;
       if (getEditLocked(store)) return;
-      if (!clipboardEntry) return;
-      e.preventDefault();
-      pasteArmed = true;
-      document.body.classList.add("paste-armed");
+      if (selection.armPaste()) e.preventDefault();
     }
   });
 
@@ -1466,7 +582,7 @@ import {
     clearUndoSnapshot();
     switchPlan(store, planSwitcher.value);
     persist();
-    renderAll();
+    renderer.renderAll();
   });
 
   newPlanBtn.addEventListener("click", () => {
@@ -1474,7 +590,7 @@ import {
     const newPlan = createEmptyPlan(nextDefaultPlanName(), getLanguage(store));
     addPlan(store, newPlan);
     persist();
-    renderAll();
+    renderer.renderAll();
     focusPlanTitleForRename();
   });
 
@@ -1485,7 +601,7 @@ import {
     clearUndoSnapshot();
     removePlan(store, p.id);
     persist();
-    renderAll();
+    renderer.renderAll();
   });
 
   languageSwitcher.addEventListener("change", () => {
@@ -1495,12 +611,12 @@ import {
     if (newLanguage !== oldLanguage) {
       const oldDefaults = DAYS_BY_LANGUAGE[oldLanguage] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE];
       const newDefaults = DAYS_BY_LANGUAGE[newLanguage] || DAYS_BY_LANGUAGE[DEFAULT_LANGUAGE];
-      Object.values(store.plans).forEach((p) => translatePlanDayNames(p, oldDefaults, newDefaults));
+      Object.values(store.plans).forEach((p) => columns.translatePlanDayNames(p, oldDefaults, newDefaults));
     }
 
     setLanguage(store, newLanguage);
     persist();
-    renderAll();
+    renderer.renderAll();
   });
 
   planTitleEl.addEventListener("keydown", (e) => {
@@ -1516,7 +632,7 @@ import {
     planTitleEl.textContent = name;
     renamePlan(store, store.activePlanId, name);
     persist();
-    renderPlanSwitcher();
+    renderer.renderPlanSwitcher();
     document.title = `${name} · ${t("appTitleSuffix")}`;
   });
 
@@ -1534,6 +650,6 @@ import {
     }
   });
 
-  buildColorSwatches();
-  renderAll();
+  renderer.buildColorSwatches();
+  renderer.renderAll();
 })();

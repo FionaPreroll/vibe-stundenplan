@@ -12,11 +12,15 @@ rather than an accident).
 | `io.js` | Export/import serialization of a plan (JSON, specified in [EXPORT_FORMAT.md](EXPORT_FORMAT.md)). Pure functions, takes language as a parameter instead of determining it itself. | Yes — `io.test.js` |
 | `store.js` | Persistence of multiple plans + language choice. `localStorage` access is injectable via a `storage` parameter (tests use an in-memory fake). | Yes — `store.test.js` |
 | `i18n.js` | String dictionary (DE/EN) + a couple of small pure helpers (`translate`, `detectDefaultLanguage`). No framework. | Yes — `i18n.test.js` |
-| `app.js` | DOM controller: rendering, event wiring, connects the modules above to the page. The only module that touches `document`/`window`. | No, see below |
+| `render.js` | Table/modal rendering (DOM creation): builds the header/body/plan-switcher/title, the "now" highlight, the color swatches. Takes plan data + callbacks into `selection.js`/`columns.js`, doesn't know about their wiring details. | No, see below |
+| `selection.js` | The drag-to-select/drag-to-move state machine (`dragState`, mouse + touch), plus copy/paste (both hang off the same "grab, then drop on a cell" gesture). | No, see below |
+| `columns.js` | Day-column management (add/remove/rename/translate-on-language-switch) and column-width resizing, mirroring the existing separation of `logic.js` functions. | No, see below |
+| `app.js` | DOM controller: element lookups, wires `render.js`/`selection.js`/`columns.js` together, plus its own modal/undo/plan-management/import-export logic and top-level event listeners. The only module that touches `document`/`window`. | No, see below |
 
 **Rule of thumb when adding code:** if a function doesn't need any browser globals (no
 `document`, `window`, `localStorage`, `alert`, `confirm`), it belongs in `logic.js`, `io.js`,
-`store.js`, or `i18n.js` — not in `app.js`. `app.js` should stay thin wiring: read values from
+`store.js`, or `i18n.js` — not in one of the DOM-controller modules. Those four modules
+(`app.js`, `render.js`, `selection.js`, `columns.js`) should stay thin wiring: read values from
 the DOM, call a pure function, write the result back to the DOM.
 
 ## Test philosophy
@@ -24,16 +28,16 @@ the DOM, call a pure function, write the result back to the DOM.
 - **Tested:** everything in `logic.js` / `io.js` / `store.js` / `i18n.js` — with Node's
   built-in test runner (`npm test`, no external test framework). Runs in CI on every
   push/PR.
-- **Not unit-tested:** `app.js`. A DOM controller with click handlers, drag logic, and modal
-  state would only be meaningfully unit-testable with considerable effort (jsdom or a headless
-  browser as a test dependency), for a payoff that isn't proportionate at this project's size.
-  The default is still: **manually click through with Playwright before every commit that
-  changes `app.js`/`index.html`** (local server + Playwright — a screenshot and/or targeted
+- **Not unit-tested:** `app.js`, `render.js`, `selection.js`, `columns.js`. DOM controllers
+  with click handlers, drag logic, and modal state would only be meaningfully unit-testable
+  with considerable effort (jsdom or a headless browser as a test dependency), for a payoff
+  that isn't proportionate at this project's size. The default is still: **manually click
+  through with Playwright before every commit that changes any of the four DOM-controller
+  modules or `index.html`** (local server + Playwright — a screenshot and/or targeted
   `page.$eval` checks of the affected interaction, discarded afterward). That's a deliberate
-  choice of developer discipline over a CI gate for most of `app.js`; if it ever gets
+  choice of developer discipline over a CI gate for most of that code; if it ever gets
   large/risky enough that this stops holding up broadly, that's a signal that parts of it
-  should move into testable modules (see the next section), not that a full browser test suite
-  needs to be introduced.
+  should move into testable modules, not that a full browser test suite needs to be introduced.
 - **The one exception — `e2e/`:** a small, permanent Playwright test suite
   (`@playwright/test`, `npm run test:e2e`, runs in CI via `ci.yml`'s `e2e` job) for specific
   layout/CSS behaviors that (a) `node --test` categorically can't see, no real DOM/layout
@@ -59,32 +63,34 @@ the DOM, call a pure function, write the result back to the DOM.
 ## Modularity: vanilla JS isn't dogma
 
 The app is deliberately built without a build step and without a framework — not on
-principle, but because the scope hasn't justified one so far: seven modules, a manageable
+principle, but because the scope hasn't justified one so far: ten modules, a manageable
 shape of state (one store object), no complex dependencies between UI components. A framework
 (React/Vue/Svelte) or a bundler would introduce more conceptual and tooling overhead here than
 it would return in clarity.
 
-**That's not a ban on ever reconsidering, though — it's a trade-off that can shift as the
-project grows.** Concrete signals that would justify a change:
+**`app.js` was split once already**, once it had grown past the point of being graspable at a
+glance (it reached ~1,540 lines) into `render.js` (table/modal rendering), `selection.js`
+(the drag-to-select/drag-to-move state machine plus copy/paste), and `columns.js`
+(day-column management and column-width resizing) — `app.js` itself is now the thin remainder:
+element lookups, wiring those modules together (breaking the circular dependency between
+render.js needing selection/columns callbacks and selection/columns needing to trigger a
+re-render — see the "Module wiring" comment in `app.js`), plus its own modal/undo/plan-
+management/import-export logic that didn't cleanly belong to any of the three. Still no
+framework, just more files.
 
-- `app.js` grows significantly beyond its current size (as of writing: ~700 lines) and its
-  responsibilities can no longer be grasped at a glance.
+**That's not the end state, and reconsidering a framework is still not a ban — it's a
+trade-off that can shift as the project grows.** Concrete signals that would justify a further
+split or a framework:
+
+- Any of the four DOM-controller modules grows significantly beyond a size where its
+  responsibilities can still be grasped at a glance (as a rough anchor: this document
+  originally flagged ~700 lines as that point for `app.js`, though the actual split didn't
+  happen until it had more than doubled that).
 - State changes need multiple levels of manual DOM diffing (currently: almost everything just
   renders via `innerHTML = ""` + rebuild — works because the table stays small; would get
   inefficient at, say, hundreds of rows).
 - Two or more components would need to keep state in sync in a way a simple
   render-after-every-change pattern can no longer cover.
-
-**If `app.js` does get split up, prefer this direction** (the next sensible step, still
-without a framework):
-
-- `render.js` — table/modal rendering (DOM creation), takes plan data + callbacks, doesn't
-  know about event-wiring details.
-- `selection.js` — drag-selection state machine (`dragState`, `highlightSelection`, …).
-- `columns.js` — day-column management (add/remove/rename), mirroring the existing separation
-  of `logic.js` functions.
-- `app.js` stays the thin remainder: registering event listeners, wiring the modules above
-  together.
 
 **If a framework/bundler does become necessary:** not a disqualifier, but deliberate and
 small then — e.g. Preact instead of React (noticeably smaller), esbuild/Vite only if
