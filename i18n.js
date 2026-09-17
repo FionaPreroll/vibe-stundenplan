@@ -66,6 +66,7 @@ const STRINGS = {
     addRowBtn: "+ Zeile hinzufügen",
     resetBtn: "Zurücksetzen",
     printBtn: "🖨 Drucken",
+    jumpToNowBtn: "📍 Jetzt",
     editIconsToggleLabel: "Bearbeitungssymbole anzeigen",
     hintText:
       "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin (auf Touch-Geräten erst gedrückt halten).",
@@ -94,6 +95,7 @@ const STRINGS = {
       "Hinweis: Diese Zeile hat kein gültiges HH:MM–HH:MM-Zeitlabel, daher wird der Termin nicht eingerückt dargestellt.",
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
+    undoToast: "Rückgängig gemacht",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -156,6 +158,7 @@ const STRINGS = {
     addRowBtn: "+ Add row",
     resetBtn: "Reset",
     printBtn: "🖨 Print",
+    jumpToNowBtn: "📍 Now",
     editIconsToggleLabel: "Show edit icons",
     hintText:
       "Tip: click a cell to add an entry, or drag across several time slots for a longer one (press and hold first on touch).",
@@ -184,6 +187,7 @@ const STRINGS = {
       "Note: this row doesn't have a valid HH:MM–HH:MM time label, so the entry won't be shown indented.",
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
+    undoToast: "Undone",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",
