@@ -99,6 +99,11 @@ async function main() {
   await page.goto(`http://localhost:${PORT}/index.html`);
   await page.waitForSelector("#planTable");
 
+  // A brand-new visitor's store starts locked with a demo plan
+  // (REQUIREMENTS.md item 30) — unlock before building the example plans
+  // below, same as a real first-time user would via the lock icon.
+  await page.click("#editLockBtn");
+
   // Explicit, not relying on locale auto-detection: the README screenshots
   // are always English, regardless of what locale this runs under.
   await page.selectOption("#languageSwitcher", "en");
