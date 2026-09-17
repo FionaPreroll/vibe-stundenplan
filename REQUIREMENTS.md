@@ -334,18 +334,6 @@ Applying a preset/grid:
   paper) — the print view shows exactly what's visible on screen, minus controls, with no
   extra content filtering.
 
-### 16. Toggleable edit icons
-
-- A checkbox in the header ("Show edit icons") hides the row/column-remove ×, the
-  add-column "+", and the "+" in empty cells.
-- A pure display setting: the underlying interaction (clicking a cell, drag-select, renaming
-  by click) stays fully functional even with the icons hidden — not an "edit lock", just a
-  visual cleanup (e.g. for a calmer view/presentation).
-- Persisted per browser (like the language), not per plan — `store.showEditIcons`
-  (`getShowEditIcons`/`setShowEditIcons` in `store.js`), default `true`.
-- Independently of that, the print view (item 15) *always* hides these same icons regardless
-  of the current toggle state — print should never show interactive UI.
-
 ### 17. Responsive layout & mobile
 
 - The table uses `table-layout: fixed` instead of `auto`: under automatic layout, form
@@ -408,12 +396,12 @@ Applying a preset/grid:
 ### 19. Grouped header toolbar
 
 - **Trigger:** the header's action row had grown linearly with every feature added this
-  session (most recently print, the edit-icons toggle) — six buttons plus a toggle sat at
-  equal visual weight in one row, with nothing showing what belonged together or what was
+  session — the actions sat at equal visual weight in one row, with nothing showing what
+  belonged together or what was
   dangerous (see the UI review that preceded this change).
 - **Grouping instead of a flat row:** the buttons are split into three labeled groups
   (`.action-group` with `.action-group-label`): "Data" (Export, Import), "Grid" (Set time
-  grid, + Add row), "View" (Print, Show edit icons). The group labels are translated UI
+  grid, + Add row), "View" (Print, Now). The group labels are translated UI
   strings (`toolbarGroupData`/`toolbarGroupGrid`/`toolbarGroupView`), not entry/user data. The
   divider between groups sits as a `border-right` on the group itself rather than as a
   standalone divider element — otherwise a line wrap (narrow screen) could strand a single
@@ -494,17 +482,15 @@ Applying a preset/grid:
   another, and actually stop editing from happening (not just hide its buttons).
 - A lock button (`#editLockBtn`, 🔓/🔒, right next to the title — the one element that's never
   hidden by this) toggles `body.edit-locked`. Persisted per browser in `store.editLocked`
-  (`getEditLocked`/`setEditLocked` in `store.js`, same pattern as `showEditIcons`), not per
+  (`getEditLocked`/`setEditLocked` in `store.js`), not per
   plan, default off (locked is opt-in, not the default for new/existing users). A store saved
   under the older `toolbarCollapsed` name (this feature's previous, non-locking incarnation)
   has that value carried over into `editLocked` on load, then the old field is dropped.
 - **Locked hides:** the whole grouped toolbar from item 19 (Data/Grid/Print/Reset), the hint
   text, the plan +/🗑 buttons, and the About button (item 21) — leaving the plan title, the
-  plan switcher dropdown, and the theme/language selects from items 20/12. It also hides the
-  same inline table edit icons that `showEditIcons` (item 16) does (row/column-remove,
-  add-column, the resize handles, the empty-cell "+") — reusing that rule's selector list
-  rather than duplicating it, and without touching `showEditIcons`'s own saved value, so
-  unlocking again shows those icons exactly as that toggle had them.
+  plan switcher dropdown, and the theme/language selects from items 20/12. It also hides all
+  inline table edit icons (row/column-remove, add-column, resize handles, the empty-cell "+",
+  and entry copy), which return whenever editing is unlocked.
 - **Locked + narrow (≤ 600px):** the plan switcher and the theme/language selects also hide,
   leaving only the title and the lock button to unlock again — there just isn't room for a row
   of selects next to the title at phone width once the rest of the chrome is already gone.
@@ -512,8 +498,8 @@ Applying a preset/grid:
   specifically so the lock button stays on the same line as the title rather than falling onto
   its own row when `.header-top` itself switches to a column layout below 600px — keeping the
   locked+narrow header down to that one compact row instead of two.
-- **Locked actually blocks editing**, unlike `showEditIcons`/dark mode which are pure display
-  preferences: click-to-add and drag-select (item 4, including the touch long-press path from
+- **Locked actually blocks editing**, unlike dark mode, which is a pure display preference:
+  click-to-add and drag-select (item 4, including the touch long-press path from
   item 24) no-op while locked (guarded once, at the shared `mousedown`/touch-long-press-timer
   entry point both share via `dragState`), and `.day-name`/`#planTitle` get
   `contentEditable = "false"` so they can't be renamed (tapping the narrow-width
@@ -787,9 +773,9 @@ Applying a preset/grid:
   cell) meant retyping everything by hand — drag-to-move (item 26) relocates an entry but can't
   leave the original in place.
 - **Two ways to copy, one way to paste**, both scoped to a single entry:
-  - A small copy icon (⧉) in the top-right corner of a filled cell — same visibility rules as
-    the other inline edit icons (hidden by the "show edit icons" toggle and while locked, item
-    22), and stops its click from also starting a drag-to-move on the cell underneath it (like
+  - A small copy icon (⧉) in the top-right corner of a filled cell — hidden while editing is
+    locked (item 22), like the other inline edit icons, and stops its click from also starting
+    a drag-to-move on the cell underneath it (like
     the entry's own link already does).
   - `Ctrl+C`/`Cmd+C` while the mouse is over a filled cell — there's no other notion of
     "focus" on a specific cell in this app, so hovering stands in for it, tracked purely for

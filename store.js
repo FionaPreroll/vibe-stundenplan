@@ -110,9 +110,10 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
         if (!LANGUAGES.includes(parsed.language)) {
           parsed.language = defaultLanguage;
         }
-        if (typeof parsed.showEditIcons !== "boolean") {
-          parsed.showEditIcons = true;
-        }
+        // The former display-only "show edit icons" preference has been
+        // replaced by the real edit lock. Drop it during loading so old
+        // stores are cleaned up on their next save.
+        delete parsed.showEditIcons;
         if (typeof parsed.editLocked !== "boolean") {
           // Carries over the old "collapsed toolbar" preference this
           // replaced, so a store from before it became a real edit lock
@@ -151,7 +152,6 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
 
   return {
     language: defaultLanguage,
-    showEditIcons: true,
     editLocked: isFreshVisitor,
     theme: "system",
     activePlanId: initialPlan.id,
@@ -174,15 +174,6 @@ export function getLanguage(store) {
 
 export function setLanguage(store, language) {
   if (LANGUAGES.includes(language)) store.language = language;
-  return store;
-}
-
-export function getShowEditIcons(store) {
-  return typeof store.showEditIcons === "boolean" ? store.showEditIcons : true;
-}
-
-export function setShowEditIcons(store, show) {
-  store.showEditIcons = Boolean(show);
   return store;
 }
 

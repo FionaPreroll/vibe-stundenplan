@@ -6,8 +6,6 @@ import {
   getActivePlan,
   getLanguage,
   setLanguage,
-  getShowEditIcons,
-  setShowEditIcons,
   getEditLocked,
   setEditLocked,
   getTheme,
@@ -170,23 +168,14 @@ test("getLanguage/setLanguage validate against the known language list", () => {
   assert.equal(getLanguage(store), "en");
 });
 
-test("getShowEditIcons/setShowEditIcons default to true and coerce to boolean", () => {
-  const store = loadStore(createMemoryStorage());
-  assert.equal(getShowEditIcons(store), true);
-  setShowEditIcons(store, false);
-  assert.equal(getShowEditIcons(store), false);
-  setShowEditIcons(store, 1); // truthy, coerced
-  assert.equal(getShowEditIcons(store), true);
-});
-
-test("loadStore defaults showEditIcons to true for an older store without that field", () => {
+test("loadStore removes the retired showEditIcons preference from older stores", () => {
   const storage = createMemoryStorage();
   const store = loadStore(storage);
-  delete store.showEditIcons;
+  store.showEditIcons = false;
   saveStore(store, storage);
 
   const reloaded = loadStore(storage);
-  assert.equal(getShowEditIcons(reloaded), true);
+  assert.equal("showEditIcons" in reloaded, false);
 });
 
 test("getEditLocked/setEditLocked coerce to boolean", () => {

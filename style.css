@@ -284,32 +284,7 @@ body {
   background: var(--danger-outline-hover);
 }
 
-.edit-icons-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  padding: 0 4px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.edit-icons-toggle input {
-  cursor: pointer;
-}
-
-/* Hides the interactive icons (row/column remove, add-column) without
-   disabling the underlying click/drag behavior — a display preference,
-   not an edit-lock. Locking editing (below) hides the same icons too,
-   without touching the hide-edit-icons toggle's own saved state —
-   unlocking again restores whatever that toggle was set to. */
-body.hide-edit-icons .row-remove-btn,
-body.hide-edit-icons .col-remove-btn,
-body.hide-edit-icons .add-day-col,
-body.hide-edit-icons .cell-placeholder,
-body.hide-edit-icons .col-resize-handle,
-body.hide-edit-icons .entry-copy-btn,
+/* Editing controls are only visible while editing is unlocked. */
 body.edit-locked .row-remove-btn,
 body.edit-locked .col-remove-btn,
 body.edit-locked .add-day-col,
@@ -606,8 +581,8 @@ tbody td {
 }
 
 /* Duplicates the entry into an in-memory clipboard (see copyEntry/
-   pasteEntryAt in app.js) — same visibility rules as the row/column
-   remove icons below (hidden by hide-edit-icons and while locked), and
+   pasteEntryAt in app.js) — hidden while editing is locked, like the
+   row/column remove icons, and
    stops the click from also starting a drag-to-move on the cell beneath
    it, same as .entry-link already does. */
 .entry-copy-btn {
@@ -723,7 +698,7 @@ body.no-select {
 
 .entry-description {
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: var(--text);
   margin: 0 0 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
