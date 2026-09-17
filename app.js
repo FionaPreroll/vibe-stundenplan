@@ -57,6 +57,7 @@ import {
   const ROW_HEIGHT_PX = 70; // keep in sync with `tbody td { height }` in style.css
   const NOW_HIGHLIGHT_INTERVAL_MS = 30000;
   const MIN_COL_WIDTH = 60;
+  const TOAST_DURATION_MS = 2500;
 
   let store = loadStore(window.localStorage, detectDefaultLanguage(navigator.language));
 
@@ -87,6 +88,7 @@ import {
   const exportAllBtn = document.getElementById("exportAllBtn");
   const importBtn = document.getElementById("importBtn");
   const importFileInput = document.getElementById("importFileInput");
+  const toastEl = document.getElementById("toast");
 
   const modalOverlay = document.getElementById("modalOverlay");
   const entryForm = document.getElementById("entryForm");
@@ -122,6 +124,48 @@ import {
 
   function persist() {
     saveStore(store, window.localStorage);
+  }
+
+  // --- Undo (single level) ------------------------------------------------
+  // Every action that mutates the active plan's own content (entries, day
+  // columns, times/rowCount, column widths, its name) snapshots the plan
+  // first — a deep clone, since which fields change varies per action.
+  // Deliberately just one level ("the last action", not a full history) and
+  // scoped to plan *content*: store-level preferences (theme, language,
+  // edit lock, which plan is active) aren't snapshotted, so Ctrl+Z never
+  // surprises someone by reverting a toggle they made on purpose. Creating/
+  // deleting/switching a whole plan is out of scope too — deletion already
+  // has its own confirm(), and there's no sane single "content" to restore
+  // a removed plan into.
+  let undoSnapshot = null; // { planId, plan: <deep clone> }
+
+  function snapshotForUndo() {
+    undoSnapshot = { planId: store.activePlanId, plan: structuredClone(plan()) };
+  }
+
+  function clearUndoSnapshot() {
+    undoSnapshot = null;
+  }
+
+  function performUndo() {
+    if (getEditLocked(store)) return;
+    if (!undoSnapshot || undoSnapshot.planId !== store.activePlanId) return;
+    store.plans[undoSnapshot.planId] = undoSnapshot.plan;
+    undoSnapshot = null;
+    persist();
+    renderAll();
+    showToast(t("undoToast"));
+  }
+
+  // --- Toast (brief, non-blocking feedback) -------------------------------
+
+  let toastHideTimer = null;
+
+  function showToast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.remove("hidden");
+    clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(() => toastEl.classList.add("hidden"), TOAST_DURATION_MS);
   }
 
   function rainbowPalette() {
@@ -338,6 +382,13 @@ import {
           e.preventDefault();
           timeLabel.blur();
         }
+      });
+      // Snapshotted once per edit session (on focus), not per keystroke —
+      // "input" fires on every character, and undoing a whole retyped
+      // label back to its pre-edit text in one Ctrl+Z is the useful
+      // granularity, not one letter at a time.
+      timeLabel.addEventListener("focus", () => {
+        snapshotForUndo();
       });
       timeLabel.addEventListener("input", () => {
         p.times[row] = timeLabel.textContent;
@@ -704,6 +755,7 @@ import {
       }
       return;
     }
+    snapshotForUndo();
     p.entries = moveEntry(p.entries, day, anchorRow, currentDay, currentRow, p.rowCount);
     persist();
     renderBody();
@@ -767,6 +819,7 @@ import {
     document.body.classList.remove("no-select");
 
     const p = plan();
+    snapshotForUndo();
     if (target.kind === "time") {
       p.timeColWidth = width;
     } else {
@@ -830,6 +883,7 @@ import {
     if (!activeSelection) return;
     const { day, rowStart, rowEnd, isNewRange } = activeSelection;
     const p = plan();
+    snapshotForUndo();
     const update = computeEntryUpdate(
       fieldTitle.value,
       fieldDescription.value,
@@ -858,6 +912,7 @@ import {
   function deleteEntry() {
     if (!activeSelection) return;
     const { day, rowStart } = activeSelection;
+    snapshotForUndo();
     delete plan().entries[cellKey(rowStart, day)];
     persist();
     renderBody();
@@ -894,6 +949,7 @@ import {
       return;
     }
 
+    snapshotForUndo();
     p.rowCount = requiredRowCount(p.rowCount, newTimes.length);
     p.times = mergeTimes(p.times, newTimes);
     persist();
@@ -904,6 +960,7 @@ import {
   // --- Row / reset actions -------------------------------------------------
 
   function addRow() {
+    snapshotForUndo();
     plan().rowCount += 1;
     persist();
     renderBody();
@@ -917,6 +974,7 @@ import {
       if (!confirm(t("confirmRemoveRowWithEntries"))) return;
     }
 
+    snapshotForUndo();
     const result = removeRow(rowIndex, p.rowCount, p.times, p.entries);
     p.rowCount = result.rowCount;
     p.times = result.times;
@@ -927,6 +985,7 @@ import {
 
   function resetAll() {
     if (!confirm(t("confirmResetPlan"))) return;
+    snapshotForUndo();
     const p = plan();
     p.rowCount = INITIAL_ROW_COUNT;
     p.times = [];
@@ -961,6 +1020,7 @@ import {
 
   function addDayColumn() {
     const p = plan();
+    snapshotForUndo();
     p.days.push(nextDefaultDayName(p.days));
     persist();
     renderHeader();
@@ -979,6 +1039,7 @@ import {
       if (!confirm(t("confirmRemoveDayWithEntries", { day }))) return;
     }
 
+    snapshotForUndo();
     p.days.splice(index, 1);
     p.entries = removeDayEntries(p.entries, day);
     p.columnWidths = removeDayWidth(p.columnWidths, day);
@@ -1018,6 +1079,7 @@ import {
         return;
       }
 
+      snapshotForUndo();
       p.days[index] = newName;
       p.entries = renameDayEntries(p.entries, oldName, newName);
       p.columnWidths = renameDayWidth(p.columnWidths, oldName, newName);
@@ -1188,20 +1250,44 @@ import {
     }
   });
 
+  // A focused <input>/<textarea>/contenteditable gets the browser's own
+  // native text-undo for Ctrl+Z — e.g. mid-edit in the entry modal, or
+  // typing a time label or day name directly in the grid. Our plan-level
+  // undo only takes over when focus isn't in one of those, so the two
+  // never fight over the same keystroke.
+  function isEditableFocus(el) {
+    if (!el) return false;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return true;
+    return el.isContentEditable;
+  }
+
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!modalOverlay.classList.contains("hidden")) closeModal();
-    if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
-    if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
+    if (e.key === "Escape") {
+      if (!modalOverlay.classList.contains("hidden")) closeModal();
+      if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
+      if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+      if (isEditableFocus(document.activeElement)) return;
+      e.preventDefault();
+      performUndo();
+    }
   });
 
   planSwitcher.addEventListener("change", () => {
+    // Undo is scoped to "the last action on the plan I'm currently looking
+    // at" — leaving it (even briefly, then coming back) ends that context,
+    // rather than leaving a stale snapshot Ctrl+Z could unexpectedly jump
+    // back to later.
+    clearUndoSnapshot();
     switchPlan(store, planSwitcher.value);
     persist();
     renderAll();
   });
 
   newPlanBtn.addEventListener("click", () => {
+    clearUndoSnapshot();
     const newPlan = createEmptyPlan(nextDefaultPlanName(), getLanguage(store));
     addPlan(store, newPlan);
     persist();
@@ -1213,6 +1299,7 @@ import {
     if (store.planOrder.length <= 1) return;
     const p = plan();
     if (!confirm(t("confirmDeletePlan", { name: p.name }))) return;
+    clearUndoSnapshot();
     removePlan(store, p.id);
     persist();
     renderAll();
@@ -1242,6 +1329,7 @@ import {
 
   planTitleEl.addEventListener("blur", () => {
     const name = planTitleEl.textContent.trim() || t("defaultPlanName");
+    if (name !== plan().name) snapshotForUndo();
     planTitleEl.textContent = name;
     renamePlan(store, store.activePlanId, name);
     persist();

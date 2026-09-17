@@ -663,6 +663,41 @@ Applying a preset/grid:
   the plain `cursor: pointer` every cell has by default — locked mode's own
   `cursor: default` override still wins there, by specificity.
 
+### 27. Undo (Ctrl+Z) for the last action
+
+- **Trigger:** drag-to-move (item 26) can silently overwrite a different entry with no
+  confirmation, same as saving a new range over a filled cell already could (item 4) — a single
+  accidental drop or an overlapping save had no way back except manually re-entering whatever
+  was lost.
+- **Single level, not a history**: `Ctrl+Z`/`Cmd+Z` restores the plan to how it looked right
+  before the *one* most recent content-mutating action — pressing it again immediately after
+  does nothing (there's nothing further back kept). Each new mutating action overwrites
+  whatever was previously undoable.
+- **Scoped to the active plan's own content** (`entries`, `days`, `times`/`rowCount`,
+  `columnWidths`/`timeColWidth`, the plan's `name`) — a full deep-clone snapshot taken right
+  before each mutation, restored wholesale on undo. Covers: adding/editing/deleting an entry,
+  moving one by drag (item 26), applying a time raster, adding/removing a row, resetting the
+  plan, adding/removing/renaming a day column, resizing the time or a day column, renaming the
+  plan itself.
+- **Deliberately out of scope:** store-level preferences (theme, language, edit lock, which
+  plan is active) and plan-level actions (creating, deleting, or switching plans) — undoing a
+  toggle nobody thinks of as "an edit" would be surprising, and plan deletion already has its
+  own `confirm()`; there's no single sane "content" to undo a whole removed/switched-away-from
+  plan back into. Switching plans (or creating/deleting one) clears whatever was pending for
+  undo rather than leaving a stale snapshot Ctrl+Z could unexpectedly jump back to later.
+- **Typing a time label snapshots once per edit session** (on focus), not per keystroke — the
+  `input` event that saves-as-you-type fires on every character, and undoing a whole retyped
+  label back to its pre-edit text in one `Ctrl+Z` is the useful granularity, not one letter at
+  a time.
+- **Never hijacks the browser's own native text-undo**: `Ctrl+Z` while focus is inside an
+  `<input>`/`<textarea>`/`contenteditable` (the entry-modal fields, a time label, a day name,
+  the plan title, mid-edit) does the browser's ordinary text-field undo instead — the two never
+  compete for the same keystroke.
+- Respects the edit lock (item 22): blocked entirely while locked, consistent with undo itself
+  being an editing action.
+- A brief toast ("Undone"/"Rückgängig gemacht") confirms an undo fired — the same reusable
+  `#toast` element/`showToast()` helper other brief, non-blocking feedback (e.g. item 28) uses.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly
