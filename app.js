@@ -32,8 +32,6 @@ import {
   getActivePlan,
   getLanguage,
   setLanguage,
-  getShowEditIcons,
-  setShowEditIcons,
   getEditLocked,
   setEditLocked,
   getTheme,
@@ -85,7 +83,6 @@ import {
   const resetBtn = document.getElementById("resetBtn");
   const printBtn = document.getElementById("printBtn");
   const jumpToNowBtn = document.getElementById("jumpToNowBtn");
-  const editIconsToggle = document.getElementById("editIconsToggle");
   const exportBtn = document.getElementById("exportBtn");
   const exportAllBtn = document.getElementById("exportAllBtn");
   const importBtn = document.getElementById("importBtn");
@@ -260,18 +257,10 @@ import {
     languageSwitcher.value = getLanguage(store);
   }
 
-  function applyEditIconsVisibility() {
-    const show = getShowEditIcons(store);
-    document.body.classList.toggle("hide-edit-icons", !show);
-    editIconsToggle.checked = show;
-  }
-
   // A "just look at and use the schedule" mode: hides the toolbar, the plan
-  // +/- buttons, the about button, and (like hide-edit-icons) the inline
-  // row/column-remove icons — collapsed narrower than 600px, only the title
-  // is left — and actually locks editing: no new entries, no renaming the
-  // plan title or day columns. Doesn't touch the underlying showEditIcons
-  // preference, so unlocking again restores whatever that toggle had.
+  // +/- buttons, the about button, and the inline row/column-remove icons —
+  // collapsed narrower than 600px, only the title is left — and actually
+  // locks editing: no new entries, no renaming the plan title or day columns.
   // Switching plans, theme, language, and printing stay available since
   // they don't mutate the current plan's content.
   function applyEditLocked() {
@@ -560,7 +549,6 @@ import {
 
   function renderAll() {
     applyStaticTranslations();
-    applyEditIconsVisibility();
     applyEditLocked();
     applyTheme();
     renderHeader();
@@ -1362,11 +1350,6 @@ import {
   wireColumnResize(timeColResizeHandle, { kind: "time", th: timeColEl });
 
   printBtn.addEventListener("click", () => window.print());
-  editIconsToggle.addEventListener("change", () => {
-    setShowEditIcons(store, editIconsToggle.checked);
-    persist();
-    applyEditIconsVisibility();
-  });
   deleteEntryBtn.addEventListener("click", deleteEntry);
   cancelModalBtn.addEventListener("click", closeModal);
   modalOverlay.addEventListener("click", (e) => {
