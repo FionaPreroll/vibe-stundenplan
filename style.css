@@ -872,6 +872,15 @@ body.no-select {
     position: sticky;
     left: 0;
     z-index: 2;
+    /* Forces its own compositor layer. Chromium keeps every sticky
+       .time-cell correctly pinned without this (verified: e2e/
+       sticky-time-column.spec.js), but Safari/WebKit has a long-documented
+       bug where only one sticky-positioned table cell per scroll gesture
+       actually repositions, leaving the rest of the column behind — this is
+       the standard workaround for that class of bug. Not verified against
+       real WebKit (unavailable in this environment); please confirm on an
+       actual phone before relying on it. */
+    transform: translateZ(0);
   }
 }
 

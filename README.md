@@ -58,6 +58,15 @@ npm test
 
 Runs on Node's built-in test runner, no external dependencies needed.
 
+A small `e2e/` Playwright suite additionally guards a couple of layout/CSS behaviors the unit
+tests can't see (see [CONTRIBUTING.md](CONTRIBUTING.md)):
+
+```
+npm install
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
 ## Updating screenshots
 
 The screenshots above are automatically regenerated and committed back by GitHub Actions

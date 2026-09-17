@@ -273,8 +273,11 @@ Applying a preset/grid:
 - `store.test.js` uses a small in-memory fake for `localStorage` (dependency-injected via
   `loadStore(storage, defaultLanguage)` / `saveStore(store, storage)`), so it needs no
   browser/DOM.
-- The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull
-  request.
+- A small, separate `e2e/` Playwright suite (`@playwright/test`, `npm run test:e2e`) for
+  layout/CSS regressions `node --test` can't see — see CONTRIBUTING.md's test philosophy for
+  scope (added only for behaviors that have actually broken, not preemptively).
+- The `ci.yml` GitHub Actions workflow runs on every push to `main` and on every pull request,
+  as two jobs: `test` (`npm test`) and `e2e` (installs a Chromium browser, `npm run test:e2e`).
 
 ### 14. Deployment & screenshots
 
@@ -580,6 +583,19 @@ Applying a preset/grid:
   (`z-index: 3`) so the header row still covers it while scrolled down, and both sit below
   `.time-col` (`z-index: 4`), the corner cell frozen in both directions, which has to stay on
   top of both the frozen row and the frozen column it's the intersection of.
+- **Known bug this shipped with, then fixed:** the very first manual verification of this
+  feature only checked the header cell (`.time-col`) and the first row's `.time-cell` — every
+  *other* row's `.time-cell` was never actually confirmed to stay pinned, and a user later
+  reported exactly that on a real phone: only the header row stayed put while scrolling
+  horizontally. Chromium (the only engine this project can test against, see CONTRIBUTING.md)
+  keeps every `.time-cell` correctly pinned even without any extra hint — the automated
+  regression test added for this (`e2e/sticky-time-column.spec.js`, checks *every* row, not
+  just the first) never reproduced a failure against the already-shipped CSS. The leading
+  hypothesis is a well-documented Safari/WebKit bug where only one sticky-positioned table
+  cell per scroll gesture actually repositions; `.time-cell` now also has
+  `transform: translateZ(0)` (forces its own compositor layer, the standard workaround for
+  that bug class) as a best-effort fix — unverified against real WebKit, since none is
+  available in this project's tooling.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 

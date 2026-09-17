@@ -24,16 +24,28 @@ the DOM, call a pure function, write the result back to the DOM.
 - **Tested:** everything in `logic.js` / `io.js` / `store.js` / `i18n.js` — with Node's
   built-in test runner (`npm test`, no external test framework). Runs in CI on every
   push/PR.
-- **Not tested (automated):** `app.js`. A DOM controller with click handlers, drag logic, and
-  modal state would only be meaningfully unit-testable with considerable effort (jsdom or a
-  headless browser as a test dependency), for a payoff that isn't proportionate at this
-  project's size. Instead: **manually click through with Playwright before every commit that
-  changes `app.js`/`index.html`** (local server + Playwright, as done consistently throughout
-  this project's session history — a screenshot and/or targeted `page.$eval` checks of the
-  affected interaction). That's a deliberate choice of developer discipline over a CI gate; if
-  `app.js` ever gets large/risky enough that this stops holding up, that's a signal that parts
-  of it should move into testable modules (see the next section), not that a browser test suite
+- **Not unit-tested:** `app.js`. A DOM controller with click handlers, drag logic, and modal
+  state would only be meaningfully unit-testable with considerable effort (jsdom or a headless
+  browser as a test dependency), for a payoff that isn't proportionate at this project's size.
+  The default is still: **manually click through with Playwright before every commit that
+  changes `app.js`/`index.html`** (local server + Playwright — a screenshot and/or targeted
+  `page.$eval` checks of the affected interaction, discarded afterward). That's a deliberate
+  choice of developer discipline over a CI gate for most of `app.js`; if it ever gets
+  large/risky enough that this stops holding up broadly, that's a signal that parts of it
+  should move into testable modules (see the next section), not that a full browser test suite
   needs to be introduced.
+- **The one exception — `e2e/`:** a small, permanent Playwright test suite
+  (`@playwright/test`, `npm run test:e2e`, runs in CI via `ci.yml`'s `e2e` job) for specific
+  layout/CSS behaviors that (a) `node --test` categorically can't see, no real DOM/layout
+  exists there, and (b) have actually broken silently before, discovered only from a user bug
+  report rather than the one-off manual Playwright check that was supposed to cover it (e.g.
+  `e2e/sticky-time-column.spec.js`, added after the frozen time column, item 25, turned out to
+  only have ever been checked on its header cell, not on every row — the body column had
+  silently stopped staying pinned). Each test in this suite exists because a specific bug
+  actually happened, not preemptively — don't add one "just in case" for a new feature; that's
+  still the manual-Playwright-and-discard default above. Keep this suite small and targeted,
+  the same way the module map above keeps `logic.js`/`io.js`/`store.js`/`i18n.js` small and
+  targeted — it's a regression guard for known fragile spots, not a parallel test pyramid.
 
 ## Modularity: vanilla JS isn't dogma
 
@@ -73,16 +85,23 @@ this document.
 
 ## The one existing exception: Playwright
 
-`scripts/screenshots.js` (for the README screenshots, automated via
-`.github/workflows/screenshots.yml`) needs Playwright as a **devDependency**. That's the only
-runtime dependency in the whole project, and deliberately kept that way:
+Two Playwright-family packages are the only runtime dependencies in the whole project, and
+deliberately kept scoped to tooling:
 
-- It only affects tooling/docs, never the shipped app code (`index.html`/`*.js` stay
+- `playwright` — used by `scripts/screenshots.js` (README screenshots, automated via
+  `.github/workflows/screenshots.yml`).
+- `@playwright/test` — the test runner for the small `e2e/` regression suite (see "Test
+  philosophy" above), automated via `ci.yml`'s `e2e` job.
+
+Both hold to the same bar:
+
+- They only affect tooling/CI, never the shipped app code (`index.html`/`*.js` stay
   completely dependency-free).
-- `npm test` (the actual CI gate) doesn't need it and doesn't install it.
+- `npm test` (Node's built-in runner, the fast/always-on gate) doesn't need either and doesn't
+  install them — only `npm run test:e2e` and `npm run screenshots` do.
 
 New tooling devDependencies are fine in principle, as long as they hold to the same bar:
-never in the shipped app code, never needed by `npm test`.
+never in the shipped app code, never needed by plain `npm test`.
 
 ## Internationalization (i18n)
 
@@ -183,7 +202,10 @@ view can't show), that's what running it locally is for.
    similar): update [EXPORT_FORMAT.md](EXPORT_FORMAT.md) to match — it's the one place that
    fully specifies the export/import JSON format.
 5. Manual Playwright run-through of the affected interaction (see the test philosophy above).
+   Fixing a bug in a layout/CSS behavior `node --test` can't see (like the frozen time column,
+   item 25)? Add or extend an `e2e/` regression test for it rather than only verifying manually
+   — see "Test philosophy" for when that suite is (and isn't) the right call.
 6. Touched `style.css`? Bump the `?v=N` cache-buster on its `<link>` in `index.html` (see
    "Deploying" above).
-7. `npm test` green, then commit. CI (`ci.yml`) and deploy (`deploy-pages.yml`) run
-   automatically on push to `main`.
+7. `npm test` (and `npm run test:e2e` if `e2e/` changed) green, then commit. CI (`ci.yml`) and
+   deploy (`deploy-pages.yml`) run automatically on push to `main`.
