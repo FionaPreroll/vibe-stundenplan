@@ -143,6 +143,25 @@ test("computeEntryUpdate includes startTime/endTime only when given", () => {
   });
 });
 
+test("computeEntryUpdate includes color only when given", () => {
+  assert.deepEqual(computeEntryUpdate("Meeting", "", "", "", "", "#ffb37a"), {
+    title: "Meeting",
+    description: "",
+    link: "",
+    color: "#ffb37a",
+  });
+  assert.deepEqual(computeEntryUpdate("Meeting", "", "", "", "", ""), {
+    title: "Meeting",
+    description: "",
+    link: "",
+  });
+  assert.deepEqual(computeEntryUpdate("Meeting", "", "", "", "", "  "), {
+    title: "Meeting",
+    description: "",
+    link: "",
+  });
+});
+
 test("computeSubRangeInset returns null without custom times or unparseable row labels", () => {
   assert.equal(computeSubRangeInset(["08:00–09:00"], "", ""), null);
   assert.equal(computeSubRangeInset([], "08:15", "08:45"), null);
