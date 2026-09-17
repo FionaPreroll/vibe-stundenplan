@@ -207,6 +207,12 @@ async function main() {
 
   await page.selectOption("#themeSwitcher", "dark");
   await page.click("#editLockBtn");
+  // .entry-box has a 0.12s `background` transition (style.css) for the
+  // ordinary hover/selection states — switching theme and locking in the
+  // same tick as the screenshot caught that transition mid-flight, so
+  // filled cells came out a washed-out gray instead of their settled dark
+  // tint. Comfortably past 0.12s before capturing.
+  await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(OUT_DIR, "app-dark-locked.png"), fullPage: true });
 
   await browser.close();
