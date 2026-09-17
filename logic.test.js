@@ -17,6 +17,7 @@ import {
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  applyEntryToAllDays,
   moveEntry,
   rowHasEntries,
   shiftEntryForRemoval,
@@ -249,6 +250,32 @@ test("findOverlappingKeys finds only same-day entries intersecting the range", (
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 0, 0), ["0_Montag"]);
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 4, 6), ["5_Montag"]);
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 10, 12), []);
+});
+
+test("applyEntryToAllDays writes the same entry to every day at the given row range", () => {
+  const entries = {};
+  const result = applyEntryToAllDays(entries, ["Montag", "Dienstag", "Mittwoch"], 2, 2, {
+    title: "Mittagspause",
+  });
+  assert.deepEqual(result, {
+    "2_Montag": { title: "Mittagspause" },
+    "2_Dienstag": { title: "Mittagspause" },
+    "2_Mittwoch": { title: "Mittagspause" },
+  });
+  assert.deepEqual(entries, {}, "does not mutate the input");
+});
+
+test("applyEntryToAllDays sets span only for a multi-row range, and overwrites existing overlaps per day", () => {
+  const entries = {
+    "2_Montag": { title: "Old" }, // overlaps the new 2-3 range, gets replaced
+    "5_Dienstag": { title: "Unrelated" }, // outside the range, stays
+  };
+  const result = applyEntryToAllDays(entries, ["Montag", "Dienstag"], 2, 3, { title: "Workshop" });
+  assert.deepEqual(result, {
+    "2_Montag": { title: "Workshop", span: 2 },
+    "2_Dienstag": { title: "Workshop", span: 2 },
+    "5_Dienstag": { title: "Unrelated" },
+  });
 });
 
 test("moveEntry relocates a single-row entry to an empty cell, same or different day", () => {

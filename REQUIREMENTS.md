@@ -663,6 +663,23 @@ Applying a preset/grid:
   the plain `cursor: pointer` every cell has by default — locked mode's own
   `cursor: default` override still wins there, by specificity.
 
+### 27. "Apply to all days" when creating an entry
+
+- **Trigger:** a recurring same-time entry across the whole week (e.g. a daily lunch break)
+  needed dragging or duplicating into every day column by hand, one at a time.
+- A checkbox in the entry modal, **shown only when creating a brand-new entry** (not when
+  editing an existing one — that already has its own single day/range, and "apply to all days"
+  isn't a meaningful action on top of an edit). Reset to unchecked every time the modal opens,
+  so it never silently carries over from a previous save.
+- When checked and saved, the same entry content (title, description, link, start/end time,
+  color, span) is written to the same row range in **every** day column of the plan at once
+  (`applyEntryToAllDays` in `logic.js`), not just the one the cell was clicked in.
+- **Overwrite rule applies independently per day**, same as a normal single-day save: any
+  different entry a given day's range now overlaps is replaced in that day only — one day
+  already having something there doesn't block or skip the rest.
+- Works for a multi-row range too (dragging across several time slots before opening the modal,
+  item 4): the same span is applied to every day.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly

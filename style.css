@@ -757,6 +757,30 @@ body.no-select {
   border-color: transparent;
 }
 
+/* A checkbox field reads better as one row (box, then label text) than
+   .field's default block-stacked "label above input" layout. */
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.field-checkbox input {
+  /* Overrides .field input's width: 100%/padding/border (meant for text
+     inputs) — a checkbox needs its own natural, unstretched size. */
+  width: auto;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.field-checkbox span {
+  margin: 0;
+  font-weight: 400;
+  color: var(--text);
+}
+
 .modal-actions {
   display: flex;
   align-items: center;

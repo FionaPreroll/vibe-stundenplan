@@ -224,6 +224,24 @@ export function findOverlappingKeys(entries, day, rowStart, rowEnd) {
   return keys;
 }
 
+// Applies the same new entry to the same row range across every day column
+// at once (the "apply to all days" checkbox when creating an entry) — e.g.
+// a lunch break set once instead of dragged/duplicated into each column by
+// hand. Same overwrite rule as a normal single-day save: any different
+// entry a given day's range now overlaps is replaced, independently per
+// day (so one day already having something there doesn't block the rest).
+export function applyEntryToAllDays(entries, days, rowStart, rowEnd, update) {
+  const span = rowEnd - rowStart + 1;
+  const result = { ...entries };
+  for (const day of days) {
+    for (const key of findOverlappingKeys(result, day, rowStart, rowEnd)) {
+      delete result[key];
+    }
+    result[cellKey(rowStart, day)] = span > 1 ? { ...update, span } : update;
+  }
+  return result;
+}
+
 // --- Moving an existing entry (drag & drop) -------------------------------
 
 // Moves the entry anchored at (fromRow, fromDay) to (toRow, toDay), keeping
