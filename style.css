@@ -618,7 +618,12 @@ tbody td {
   height: 20px;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.5);
+  /* Not a hardcoded white overlay (that read as an invisible near-white
+     blob against a dark entry background in dark mode) — --surface-2 is
+     already the theme-aware "faint tint over the surface" token every
+     other icon button (.icon-btn) uses, so it stays legible in both
+     themes automatically. */
+  background: var(--surface-2);
   color: var(--text-muted);
   line-height: 1;
   font-size: 0.75rem;
