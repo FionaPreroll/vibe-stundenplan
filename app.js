@@ -306,6 +306,17 @@ import {
       const timeTd = document.createElement("td");
       timeTd.className = "time-cell";
 
+      // The flex layout for the label + remove button lives on this inner
+      // wrapper rather than directly on timeTd itself — timeTd is the
+      // element position:sticky is applied to at narrow widths (see
+      // style.css), and Firefox has a long-standing bug where a sticky
+      // element that's also a flex container fails to reposition on
+      // scroll. .time-col (the header cell, never a flex container) never
+      // had this problem; only .time-cell did.
+      const timeInner = document.createElement("div");
+      timeInner.className = "time-cell-inner";
+      timeTd.appendChild(timeInner);
+
       const timeLabel = document.createElement("span");
       timeLabel.className = "time-label";
       timeLabel.contentEditable = "true";
@@ -322,7 +333,7 @@ import {
         p.times[row] = timeLabel.textContent;
         persist();
       });
-      timeTd.appendChild(timeLabel);
+      timeInner.appendChild(timeLabel);
 
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
@@ -331,7 +342,7 @@ import {
       removeBtn.setAttribute("aria-label", t("removeRowTitle"));
       removeBtn.textContent = "×";
       removeBtn.addEventListener("click", () => removeRowAt(row));
-      timeTd.appendChild(removeBtn);
+      timeInner.appendChild(removeBtn);
 
       tr.appendChild(timeTd);
 

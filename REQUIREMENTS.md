@@ -586,16 +586,20 @@ Applying a preset/grid:
 - **Known bug this shipped with, then fixed:** the very first manual verification of this
   feature only checked the header cell (`.time-col`) and the first row's `.time-cell` — every
   *other* row's `.time-cell` was never actually confirmed to stay pinned, and a user later
-  reported exactly that on a real phone: only the header row stayed put while scrolling
-  horizontally. Chromium (the only engine this project can test against, see CONTRIBUTING.md)
-  keeps every `.time-cell` correctly pinned even without any extra hint — the automated
+  reported exactly that on a real phone (Firefox Mobile): only the header row stayed put while
+  scrolling horizontally. Chromium (the only engine this project can test against, see
+  CONTRIBUTING.md) keeps every `.time-cell` correctly pinned regardless — the automated
   regression test added for this (`e2e/sticky-time-column.spec.js`, checks *every* row, not
-  just the first) never reproduced a failure against the already-shipped CSS. The leading
-  hypothesis is a well-documented Safari/WebKit bug where only one sticky-positioned table
-  cell per scroll gesture actually repositions; `.time-cell` now also has
-  `transform: translateZ(0)` (forces its own compositor layer, the standard workaround for
-  that bug class) as a best-effort fix — unverified against real WebKit, since none is
-  available in this project's tooling.
+  just the first) never reproduced a failure against the already-shipped CSS, in Chromium.
+  **Root cause:** `.time-col` (always worked) is a plain table cell; `.time-cell` (didn't) was
+  additionally `display: flex` on the very element `position: sticky` was applied to — Firefox
+  has a long-standing bug where a sticky element that's also a flex container fails to
+  reposition on scroll. Fix: the flex layout (for the time label + row-remove button) moved to
+  a new `.time-cell-inner` wrapper `<div>` inside the `<td>`, so `.time-cell` itself is a plain
+  sticky table cell again, like `.time-col`. `.time-cell` also keeps a defensive
+  `transform: translateZ(0)` (forces its own compositor layer, the standard workaround for a
+  *different*, Safari/WebKit-specific sticky-table-cell bug) — that part is unverified, since
+  no WebKit engine is available in this project's tooling.
 
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
