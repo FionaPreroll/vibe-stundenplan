@@ -75,6 +75,7 @@ const STRINGS = {
     addDayColTitle: "Spalte hinzufügen",
     removeDayColTitle: "Spalte entfernen",
     removeRowTitle: "Zeile entfernen",
+    copyEntryTitle: "Termin kopieren",
 
     entryEditTitle: "Termin bearbeiten",
     entryAddTitle: "Termin hinzufügen",
@@ -97,6 +98,8 @@ const STRINGS = {
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
     undoToast: "Rückgängig gemacht",
+    copyToast: "Termin kopiert",
+    pasteToast: "Eingefügt",
     dragOverwriteToastOne: '"{title}" wurde ersetzt',
     dragOverwriteToastMany: "{count} Termine wurden ersetzt",
 
@@ -176,6 +179,7 @@ const STRINGS = {
     addDayColTitle: "Add column",
     removeDayColTitle: "Remove column",
     removeRowTitle: "Remove row",
+    copyEntryTitle: "Copy entry",
 
     entryEditTitle: "Edit entry",
     entryAddTitle: "Add entry",
@@ -198,6 +202,8 @@ const STRINGS = {
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
     undoToast: "Undone",
+    copyToast: "Entry copied",
+    pasteToast: "Pasted",
     dragOverwriteToastOne: '"{title}" replaced',
     dragOverwriteToastMany: "{count} entries replaced",
 
