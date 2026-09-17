@@ -948,6 +948,10 @@ body.no-select {
     background: none !important;
     cursor: default;
     padding: 0;
+    text-align: center;
+    /* Slightly larger than the on-screen 1.4rem — a printout's title reads
+       more like a document heading than an app-header label. */
+    font-size: 1.8rem;
   }
 
   main {
