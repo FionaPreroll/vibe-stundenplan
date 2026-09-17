@@ -224,6 +224,38 @@ export function findOverlappingKeys(entries, day, rowStart, rowEnd) {
   return keys;
 }
 
+// --- Moving an existing entry (drag & drop) -------------------------------
+
+// Moves the entry anchored at (fromRow, fromDay) to (toRow, toDay), keeping
+// its span — a multi-row entry moves as one block, it doesn't resize.
+// toRow is clamped so the entry's full span still fits within rowCount
+// (dropping near the bottom pulls it back up rather than letting it hang
+// off the grid). Same overwrite rule as saving a new range (item 4): any
+// existing entry the destination now overlaps is silently dropped, same as
+// dragging a new selection over one already does on save — moving an entry
+// isn't a different, more dangerous action than that.
+// A no-op drop (dropped back where it started) or a missing source entry
+// both return the input `entries` object unchanged (same reference), so
+// callers can tell "nothing happened" from "something moved" with `===`.
+export function moveEntry(entries, fromDay, fromRow, toDay, toRow, rowCount) {
+  const fromKey = cellKey(fromRow, fromDay);
+  const entry = entries[fromKey];
+  if (!entry) return entries;
+
+  const span = getEntrySpan(entry);
+  const clampedRow = Math.max(0, Math.min(toRow, rowCount - span));
+  const toKey = cellKey(clampedRow, toDay);
+  if (toKey === fromKey) return entries;
+
+  const result = { ...entries };
+  delete result[fromKey];
+  for (const key of findOverlappingKeys(result, toDay, clampedRow, clampedRow + span - 1)) {
+    delete result[key];
+  }
+  result[toKey] = entry;
+  return result;
+}
+
 // --- Removing rows -----------------------------------------------------
 
 export function rowHasEntries(rowIndex, days, entries) {

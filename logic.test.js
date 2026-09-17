@@ -17,6 +17,7 @@ import {
   getCellRenderInfo,
   computeSelectionRange,
   findOverlappingKeys,
+  moveEntry,
   rowHasEntries,
   shiftEntryForRemoval,
   removeRow,
@@ -248,6 +249,59 @@ test("findOverlappingKeys finds only same-day entries intersecting the range", (
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 0, 0), ["0_Montag"]);
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 4, 6), ["5_Montag"]);
   assert.deepEqual(findOverlappingKeys(entries, "Montag", 10, 12), []);
+});
+
+test("moveEntry relocates a single-row entry to an empty cell, same or different day", () => {
+  const entries = { "0_Montag": { title: "A" } };
+  const sameDay = moveEntry(entries, "Montag", 0, "Montag", 3, 10);
+  assert.deepEqual(sameDay, { "3_Montag": { title: "A" } });
+
+  const otherDay = moveEntry(entries, "Montag", 0, "Dienstag", 2, 10);
+  assert.deepEqual(otherDay, { "2_Dienstag": { title: "A" } });
+});
+
+test("moveEntry keeps a multi-row entry's span, moving it as one block", () => {
+  const entries = { "1_Montag": { title: "Block", span: 3 } }; // rows 1-3
+  const result = moveEntry(entries, "Montag", 1, "Montag", 5, 10);
+  assert.deepEqual(result, { "5_Montag": { title: "Block", span: 3 } });
+});
+
+test("moveEntry clamps the drop row so a multi-row entry's span still fits within rowCount", () => {
+  const entries = { "0_Montag": { title: "Block", span: 3 } };
+  // Dropped at row 9 of a 10-row grid (rows 0-9): a span of 3 starting at 9
+  // would reach row 11, so it's pulled back to the last row it still fits at (7).
+  const result = moveEntry(entries, "Montag", 0, "Montag", 9, 10);
+  assert.deepEqual(result, { "7_Montag": { title: "Block", span: 3 } });
+});
+
+test("moveEntry overwrites (removes) an existing entry at the destination, like saving a new range over one does", () => {
+  const entries = {
+    "0_Montag": { title: "Source" },
+    "3_Montag": { title: "InTheWay" },
+  };
+  const result = moveEntry(entries, "Montag", 0, "Montag", 3, 10);
+  assert.deepEqual(result, { "3_Montag": { title: "Source" } });
+});
+
+test("moveEntry overwrites every entry a multi-row destination now overlaps", () => {
+  const entries = {
+    "0_Montag": { title: "Source", span: 2 }, // rows 0-1
+    "4_Montag": { title: "A" },
+    "5_Montag": { title: "B" },
+    "6_Montag": { title: "C" },
+  };
+  // Dropped at row 4: covers rows 4-5, overlapping both A and B, not C.
+  const result = moveEntry(entries, "Montag", 0, "Montag", 4, 10);
+  assert.deepEqual(result, {
+    "4_Montag": { title: "Source", span: 2 },
+    "6_Montag": { title: "C" },
+  });
+});
+
+test("moveEntry is a no-op (same reference back) when dropped back on its own cell or the source is empty", () => {
+  const entries = { "0_Montag": { title: "A" } };
+  assert.equal(moveEntry(entries, "Montag", 0, "Montag", 0, 10), entries);
+  assert.equal(moveEntry(entries, "Montag", 5, "Montag", 2, 10), entries); // nothing at row 5
 });
 
 const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
