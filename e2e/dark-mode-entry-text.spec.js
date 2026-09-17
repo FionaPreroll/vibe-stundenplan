@@ -16,5 +16,10 @@ test("entry title and description use the dark-theme foreground color", async ({
     elements.map((element) => getComputedStyle(element).color)
   );
 
-  expect(colors).toEqual(["rgb(238, 238, 243)", "rgb(238, 238, 243)"]);
+  // The demo contains several populated entries. Verify every title and
+  // description instead of assuming there is only one pair of elements.
+  expect(colors).not.toHaveLength(0);
+  colors.forEach((color) => {
+    expect(color).toBe("rgb(238, 238, 243)");
+  });
 });
