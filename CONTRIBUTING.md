@@ -149,6 +149,30 @@ relative `import` in every module consistently (they import each other), which i
 the added complexity for this project's size — this is scoped to just the one file that
 actually broke.
 
+## Branching & reviewing a PR without running it locally
+
+`main` is the stable branch; changes land via a PR from a feature branch (`ci.yml` already
+runs `npm test` on every push *and* PR, so a PR's tests are visible before it merges).
+
+GitHub Pages itself has no per-branch preview deployments — it only ever serves the one
+branch/environment configured for the repo (currently `main`, via `deploy-pages.yml`). To look
+at a PR's actual UI without pulling and serving it locally, point a browser at the branch
+through a raw-file CDN instead, e.g.:
+
+```
+https://raw.githack.com/FionaPreroll/vibe-stundenplan/<branch>/index.html
+```
+
+(`cdn.statically.io` works the same way.) This works out of the box *because* the app has no
+build step — it's plain HTML/CSS/ES modules with relative imports, so serving the raw files
+directly is equivalent to what GitHub Pages itself would deploy. It's a quick "does this look
+right" check, not an official/integrated preview (no auto-posted PR comment, no cleanup) — a
+deliberate choice over adding a PR-preview-deployment workflow (e.g. subfolder deploys with an
+action like `rossjrw/pr-preview-action`), which would need switching Pages back to "deploy from
+branch" for comparatively little payoff at this project's size. If a dev needs more than that
+(testing `localStorage` persistence across reloads, multi-tab behavior, or anything the raw-file
+view can't show), that's what running it locally is for.
+
 ## Checklist for a new feature
 
 1. Pure logic (data-model operations, validation) in `logic.js`/`io.js`/`store.js`, with
