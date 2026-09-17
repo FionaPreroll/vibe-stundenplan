@@ -309,11 +309,13 @@ body.hide-edit-icons .col-remove-btn,
 body.hide-edit-icons .add-day-col,
 body.hide-edit-icons .cell-placeholder,
 body.hide-edit-icons .col-resize-handle,
+body.hide-edit-icons .entry-copy-btn,
 body.edit-locked .row-remove-btn,
 body.edit-locked .col-remove-btn,
 body.edit-locked .add-day-col,
 body.edit-locked .cell-placeholder,
-body.edit-locked .col-resize-handle {
+body.edit-locked .col-resize-handle,
+body.edit-locked .entry-copy-btn {
   display: none !important;
 }
 
@@ -601,6 +603,40 @@ tbody td {
   padding: 8px 10px;
   overflow: hidden;
   transition: background 0.12s ease;
+}
+
+/* Duplicates the entry into an in-memory clipboard (see copyEntry/
+   pasteEntryAt in app.js) — same visibility rules as the row/column
+   remove icons below (hidden by hide-edit-icons and while locked), and
+   stops the click from also starting a drag-to-move on the cell beneath
+   it, same as .entry-link already does. */
+.entry-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
+  line-height: 1;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.entry-copy-btn:hover {
+  opacity: 1;
+  background: var(--tint-accent);
+  color: var(--accent);
+}
+
+/* A copied entry is "armed" (Ctrl+V) waiting for a click to place it —
+   the copy cursor previews that the next click pastes rather than opens/
+   drags the cell it lands on. */
+body.paste-armed .data-cell {
+  cursor: copy;
 }
 
 .data-cell:hover .entry-box {
@@ -979,6 +1015,7 @@ body.no-select {
   .add-day-col,
   .cell-placeholder,
   .col-resize-handle,
+  .entry-copy-btn,
   .modal-overlay {
     display: none !important;
   }

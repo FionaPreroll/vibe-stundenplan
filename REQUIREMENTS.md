@@ -715,6 +715,40 @@ Applying a preset/grid:
 - A brief toast ("Undone"/"Rückgängig gemacht") confirms an undo fired — the same reusable
   `#toast` element/`showToast()` helper other brief, non-blocking feedback (e.g. item 28) uses.
 
+### 29. Duplicating an entry (copy/paste)
+
+- **Trigger:** recreating a similar entry elsewhere (same title/description/link/time, different
+  cell) meant retyping everything by hand — drag-to-move (item 26) relocates an entry but can't
+  leave the original in place.
+- **Two ways to copy, one way to paste**, both scoped to a single entry:
+  - A small copy icon (⧉) in the top-right corner of a filled cell — same visibility rules as
+    the other inline edit icons (hidden by the "show edit icons" toggle and while locked, item
+    22), and stops its click from also starting a drag-to-move on the cell underneath it (like
+    the entry's own link already does).
+  - `Ctrl+C`/`Cmd+C` while the mouse is over a filled cell — there's no other notion of
+    "focus" on a specific cell in this app, so hovering stands in for it, tracked purely for
+    this shortcut's benefit.
+  - Either one copies a deep clone of that entry (title, description, link, start/end time,
+    span, color) into an in-memory clipboard — not persisted, not part of the plan/store, gone
+    on reload.
+- **Pasting is a "grab, then drop" gesture, not instant**: `Ctrl+V`/`Cmd+V` arms paste mode
+  (a `copy`-style cursor over every cell) rather than pasting immediately whichever cell the
+  mouse happens to be over — the *next click on any cell* places it there, mirroring drag-to-
+  move's own "pick up, then drop" gesture instead of requiring the mouse to already be over the
+  target at the exact moment of the shortcut. One-shot: placing it (or pressing `Escape` to
+  cancel) disarms it again.
+- **Same overwrite rule as every other write** (items 4/26): any different entry the pasted
+  range now overlaps is replaced. **Same row-clamping as drag-move** for a multi-row entry
+  pasted near the bottom of the grid, so it still fits entirely within `rowCount` instead of
+  hanging off the edge.
+- Counts as a content edit for undo (item 28) and gets its own brief toast confirmation
+  ("Entry copied"/"Termin kopiert" on copy, "Pasted"/"Eingefügt" on paste) via the same
+  `showToast()` helper.
+- Never hijacks native copy/paste: like undo (item 28), both shortcuts bail out whenever focus
+  is inside an `<input>`/`<textarea>`/`contenteditable`, so the entry-modal fields, a time
+  label, a day name, or the plan title keep the browser's own clipboard behavior.
+- Respects the edit lock (item 22): both copying and pasting are blocked entirely while locked.
+
 ## Deliberate non-goals (so they don't get accidentally re-litigated in a rewrite)
 
 - No build tooling (Webpack/Vite/bundler) for the app — deliberately kept to plain, directly

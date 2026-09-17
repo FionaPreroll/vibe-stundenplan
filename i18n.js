@@ -75,6 +75,7 @@ const STRINGS = {
     addDayColTitle: "Spalte hinzufügen",
     removeDayColTitle: "Spalte entfernen",
     removeRowTitle: "Zeile entfernen",
+    copyEntryTitle: "Termin kopieren",
 
     entryEditTitle: "Termin bearbeiten",
     entryAddTitle: "Termin hinzufügen",
@@ -94,6 +95,8 @@ const STRINGS = {
     rowLabelFallback: "Zeile {n}",
     rowRangeLabelFallback: "Zeile {a}–{b}",
     undoToast: "Rückgängig gemacht",
+    copyToast: "Termin kopiert",
+    pasteToast: "Eingefügt",
 
     timeModalTitle: "Zeitraster festlegen",
     timeModalHint:
@@ -165,6 +168,7 @@ const STRINGS = {
     addDayColTitle: "Add column",
     removeDayColTitle: "Remove column",
     removeRowTitle: "Remove row",
+    copyEntryTitle: "Copy entry",
 
     entryEditTitle: "Edit entry",
     entryAddTitle: "Add entry",
@@ -184,6 +188,8 @@ const STRINGS = {
     rowLabelFallback: "Row {n}",
     rowRangeLabelFallback: "Row {a}–{b}",
     undoToast: "Undone",
+    copyToast: "Entry copied",
+    pasteToast: "Pasted",
 
     timeModalTitle: "Set time grid",
     timeModalHint: "Pick a preset or build your own grid. Entries are kept — only the time labels are set.",

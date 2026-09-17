@@ -118,6 +118,13 @@ import {
   // wireCellSelection. currentDay only changes for "move" (a selection drag
   // stays within the day column it started in; a move can cross columns).
   let dragState = null; // { mode, day, anchorRow, currentDay, currentRow, span }
+  // Entry duplication (copy icon or Ctrl+C, then a click to place — see
+  // wireCellSelection/the keydown listener below). hoveredCell tracks
+  // which cell the mouse is currently over, purely so Ctrl+C has something
+  // to act on (there's no other notion of "focus" on a cell in this app).
+  let clipboardEntry = null;
+  let hoveredCell = null; // { day, row } | null
+  let pasteArmed = false;
 
   function plan() {
     return getActivePlan(store);
@@ -440,6 +447,19 @@ import {
     if (entry && entry.title) {
       td.classList.add("filled");
 
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "entry-copy-btn";
+      copyBtn.textContent = "⧉";
+      copyBtn.title = t("copyEntryTitle");
+      copyBtn.setAttribute("aria-label", t("copyEntryTitle"));
+      copyBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyEntry(entry);
+      });
+      entryBox.appendChild(copyBtn);
+
       if (entry.startTime || entry.endTime) {
         const badge = document.createElement("p");
         badge.className = "entry-time-badge";
@@ -581,6 +601,14 @@ import {
       if (e.button !== 0) return;
       if (getEditLocked(store)) return;
       e.preventDefault();
+
+      if (pasteArmed) {
+        pasteArmed = false;
+        document.body.classList.remove("paste-armed");
+        pasteEntryAt(day, row);
+        return;
+      }
+
       const existing = plan().entries[cellKey(row, day)];
       if (existing) {
         dragState = { mode: "move", day, anchorRow: row, currentDay: day, currentRow: row, span: getEntrySpan(existing) };
@@ -594,6 +622,7 @@ import {
     });
 
     td.addEventListener("mouseenter", () => {
+      hoveredCell = { day, row };
       if (!dragState) return;
       if (dragState.mode === "move") {
         dragState.currentDay = day;
@@ -606,7 +635,36 @@ import {
       highlightSelection(dragState.day, dragState.anchorRow, row);
     });
 
+    td.addEventListener("mouseleave", () => {
+      if (hoveredCell && hoveredCell.day === day && hoveredCell.row === row) hoveredCell = null;
+    });
+
     wireCellSelectionTouch(td, row, day);
+  }
+
+  function copyEntry(entry) {
+    clipboardEntry = structuredClone(entry);
+    showToast(t("copyToast"));
+  }
+
+  // Places a copy of clipboardEntry anchored at (row, day) — same
+  // overwrite rule as a normal save (any different entry the range now
+  // overlaps is replaced), and the same row-clamping a drag-move (item 26)
+  // already does so a multi-row entry pasted near the bottom still fits
+  // entirely within the grid instead of hanging off the edge.
+  function pasteEntryAt(day, row) {
+    if (!clipboardEntry) return;
+    const p = plan();
+    const span = getEntrySpan(clipboardEntry);
+    const clampedRow = Math.max(0, Math.min(row, p.rowCount - span));
+    const rowEnd = clampedRow + span - 1;
+    snapshotForUndo();
+    findOverlappingKeys(p.entries, day, clampedRow, rowEnd).forEach((k) => delete p.entries[k]);
+    const { span: _span, ...rest } = clipboardEntry;
+    p.entries[cellKey(clampedRow, day)] = span > 1 ? { ...rest, span } : rest;
+    persist();
+    renderBody();
+    showToast(t("pasteToast"));
   }
 
   // Touch has no hover, so a plain per-cell "mouseenter" can't track a
@@ -1295,6 +1353,10 @@ import {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      if (pasteArmed) {
+        pasteArmed = false;
+        document.body.classList.remove("paste-armed");
+      }
       if (!modalOverlay.classList.contains("hidden")) closeModal();
       if (!timeModalOverlay.classList.contains("hidden")) closeTimeModal();
       if (!aboutModalOverlay.classList.contains("hidden")) closeAboutModal();
@@ -1304,6 +1366,29 @@ import {
       if (isEditableFocus(document.activeElement)) return;
       e.preventDefault();
       performUndo();
+    }
+    // Ctrl+C over a filled cell copies that entry; Ctrl+V arms "paste
+    // mode" (a cursor change + body class) rather than pasting immediately
+    // — the next click on any cell places it there (see wireCellSelection's
+    // mousedown), mirroring drag-to-move's own "grab, then drop" gesture
+    // instead of needing the mouse to already be over the target cell at
+    // the moment of the shortcut.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
+      if (isEditableFocus(document.activeElement)) return;
+      if (getEditLocked(store)) return;
+      if (!hoveredCell) return;
+      const entry = plan().entries[cellKey(hoveredCell.row, hoveredCell.day)];
+      if (!entry) return;
+      e.preventDefault();
+      copyEntry(entry);
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
+      if (isEditableFocus(document.activeElement)) return;
+      if (getEditLocked(store)) return;
+      if (!clipboardEntry) return;
+      e.preventDefault();
+      pasteArmed = true;
+      document.body.classList.add("paste-armed");
     }
   });
 
