@@ -42,7 +42,14 @@
              only scrolls — it doesn't mutate the plan — so it stays useful
              in view-only/locked mode too, same reasoning as the plan
              switcher/theme/language controls staying available. -->
-        <button id="jumpToNowBtn" class="btn btn-secondary" type="button" data-i18n="jumpToNowBtn"></button>
+        <button
+          id="jumpToNowBtn"
+          class="btn btn-secondary"
+          type="button"
+          data-i18n="jumpToNowBtn"
+          data-i18n-title="jumpToNowTitle"
+          data-i18n-aria-label="jumpToNowTitle"
+        ></button>
         <button id="editLockBtn" class="icon-btn" type="button" data-i18n-title="lockEditingTitle" data-i18n-aria-label="lockEditingTitle">🔓</button>
       </div>
       <select id="themeSwitcher" class="header-select" data-i18n-aria-label="themeSwitcherLabel">

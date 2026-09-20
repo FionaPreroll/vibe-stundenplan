@@ -67,6 +67,7 @@ const STRINGS = {
     resetBtn: "Zurücksetzen",
     printBtn: "🖨️ Drucken",
     jumpToNowBtn: "📍 Jetzt",
+    jumpToNowTitle: "Zur aktuellen Zeit und zum aktuellen Tag scrollen",
     hintText:
       "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin (auf Touch-Geräten erst gedrückt halten).",
     timeColHeader: "Zeit",
@@ -170,6 +171,7 @@ const STRINGS = {
     resetBtn: "Reset",
     printBtn: "🖨️ Print",
     jumpToNowBtn: "📍 Now",
+    jumpToNowTitle: "Scroll to the current time and day",
     hintText:
       "Tip: click a cell to add an entry, or drag across several time slots for a longer one (press and hold first on touch).",
     timeColHeader: "Time",
