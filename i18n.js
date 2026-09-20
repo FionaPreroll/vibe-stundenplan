@@ -65,7 +65,7 @@ const STRINGS = {
     timePresetBtn: "Zeiten festlegen",
     addRowBtn: "+ Zeile hinzufügen",
     resetBtn: "Zurücksetzen",
-    printBtn: "🖨 Drucken",
+    printBtn: "🖨️ Drucken",
     jumpToNowBtn: "📍 Jetzt",
     hintText:
       "Tipp: Zelle anklicken für einen Termin, oder über mehrere Zeitfenster ziehen für einen längeren Termin (auf Touch-Geräten erst gedrückt halten).",
@@ -168,7 +168,7 @@ const STRINGS = {
     timePresetBtn: "Set time grid",
     addRowBtn: "+ Add row",
     resetBtn: "Reset",
-    printBtn: "🖨 Print",
+    printBtn: "🖨️ Print",
     jumpToNowBtn: "📍 Now",
     hintText:
       "Tip: click a cell to add an entry, or drag across several time slots for a longer one (press and hold first on touch).",
