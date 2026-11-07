@@ -288,3 +288,88 @@ test("saveStore persists JSON that loadStore can read back", () => {
   assert.ok(raw);
   assert.deepEqual(JSON.parse(raw).planOrder, store.planOrder);
 });
+
+test("createEmptyPlan falls back to the German default days for an unknown language", () => {
+  assert.deepEqual(createEmptyPlan("X", "xx").days, DAYS_BY_LANGUAGE.de);
+});
+
+test("loadStore replaces invalid legacy fields with defaults while migrating", () => {
+  const storage = createMemoryStorage({
+    "stundenplan-data-v1": JSON.stringify({ rowCount: -3, times: "08:00", entries: "nope" }),
+  });
+  const plan = getActivePlan(loadStore(storage));
+  assert.equal(plan.rowCount, INITIAL_ROW_COUNT);
+  assert.deepEqual(plan.times, []);
+  assert.deepEqual(plan.entries, {});
+});
+
+test("loadStore treats a legacy value that is valid JSON but not an object as unreadable", () => {
+  const store = loadStore(createMemoryStorage({ "stundenplan-data-v1": "42" }));
+  const plan = getActivePlan(store);
+  assert.equal(store.editLocked, false, "a returning user should not get the locked demo plan");
+  assert.deepEqual(plan.entries, {});
+});
+
+test("loadStore falls back to a fresh store when the saved store is corrupt", (t) => {
+  const warn = t.mock.method(console, "warn", () => {});
+  const store = loadStore(createMemoryStorage({ "stundenplan-store-v1": "{not json" }));
+  assert.equal(warn.mock.callCount(), 1);
+  assert.equal(store.planOrder.length, 1);
+  assert.ok(getActivePlan(store));
+});
+
+test("loadStore ignores a saved store without any plans", () => {
+  const storage = createMemoryStorage({
+    "stundenplan-store-v1": JSON.stringify({ plans: {}, planOrder: [], activePlanId: null }),
+  });
+  const store = loadStore(storage);
+  assert.equal(store.planOrder.length, 1);
+  assert.ok(getActivePlan(store));
+});
+
+test("loadStore still works when storage access throws (e.g. blocked site data)", (t) => {
+  t.mock.method(console, "warn", () => {});
+  const storage = {
+    getItem: () => {
+      throw new Error("SecurityError");
+    },
+    setItem: () => {},
+  };
+  const store = loadStore(storage, "en");
+  assert.equal(store.language, "en");
+  assert.equal(store.planOrder.length, 1);
+  assert.ok(getActivePlan(store));
+});
+
+test("loadStore backfills days with the German defaults when the stored language is unknown", () => {
+  const plan = { ...createEmptyPlan("Alt"), days: [] };
+  const storage = createMemoryStorage({
+    "stundenplan-store-v1": JSON.stringify({
+      language: "xx",
+      activePlanId: plan.id,
+      planOrder: [plan.id],
+      plans: { [plan.id]: plan },
+    }),
+  });
+  // An unknown stored language falls back to the default language passed in.
+  const store = loadStore(storage, "xx");
+  assert.deepEqual(getActivePlan(store).days, DAYS_BY_LANGUAGE.de);
+});
+
+test("saveStore swallows storage errors (e.g. quota exceeded) with a warning", (t) => {
+  const warn = t.mock.method(console, "warn", () => {});
+  const storage = {
+    setItem: () => {
+      throw new Error("QuotaExceededError");
+    },
+  };
+  assert.doesNotThrow(() => saveStore({ plans: {} }, storage));
+  assert.equal(warn.mock.callCount(), 1);
+});
+
+test("getters fall back to defaults for invalid stored values", () => {
+  const store = { language: "xx", editLocked: "yes", theme: "neon" };
+  assert.equal(getLanguage(store), "de");
+  assert.equal(getEditLocked(store), false);
+  assert.equal(getTheme(store), "system");
+});
