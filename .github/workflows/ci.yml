@@ -16,8 +16,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit tests with coverage
+        # Fails the job if line, branch or function coverage of the tested
+        # modules drops below 95% (thresholds live in package.json).
+        run: npm run test:coverage
+      - name: Upload coverage to Codecov
+        # Runs even if the threshold check above failed, so Codecov still
+        # shows where coverage dropped. A Codecov outage doesn't fail CI.
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          disable_search: true
+          fail_ci_if_error: false
 
   e2e:
     runs-on: ubuntu-latest

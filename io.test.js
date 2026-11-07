@@ -148,3 +148,9 @@ test("parseAllPlansImport applies the same per-plan fallbacks as parsePlanImport
   assert.deepEqual(parsed[1].days, DAYS_BY_LANGUAGE.en);
   assert.equal(parsed[2].name, "Imported Schedule");
 });
+
+test("parsePlanImport falls back to the German default days for an unknown language", () => {
+  const json = JSON.stringify({ app: "vibe-stundenplan", version: 1, plan: { name: "X", days: [] } });
+  const parsed = parsePlanImport(json, "xx");
+  assert.deepEqual(parsed.days, DAYS_BY_LANGUAGE.de);
+});

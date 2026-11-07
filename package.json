@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.js' --test-coverage-lines=95 --test-coverage-branches=95 --test-coverage-functions=95 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info",
     "test:e2e": "playwright test",
     "screenshots": "node scripts/screenshots.js"
   },

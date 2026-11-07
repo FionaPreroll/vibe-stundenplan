@@ -1,5 +1,8 @@
 # Vibe-Stundenplan
 
+[![CI](https://github.com/FionaPreroll/vibe-stundenplan/actions/workflows/ci.yml/badge.svg)](https://github.com/FionaPreroll/vibe-stundenplan/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/FionaPreroll/vibe-stundenplan/branch/main/graph/badge.svg)](https://codecov.io/gh/FionaPreroll/vibe-stundenplan)
+
 A single-page app for everyday personal planning: a weekly schedule grid for entries,
 tasks, and blocks — right in the browser, no build step, no backend. German and English
 are both fully supported.
@@ -56,7 +59,9 @@ and open `http://localhost:8000`.
 npm test
 ```
 
-Runs on Node's built-in test runner, no external dependencies needed.
+Runs on Node's built-in test runner, no external dependencies needed. `npm run test:coverage`
+runs the same tests with a coverage report and fails below 95% line, branch, or function
+coverage; CI runs that variant and uploads the result to Codecov.
 
 A small `e2e/` Playwright suite additionally guards a couple of layout/CSS behaviors the unit
 tests can't see (see [CONTRIBUTING.md](CONTRIBUTING.md)):

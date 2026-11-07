@@ -481,3 +481,30 @@ test("translateDefaultDayNames is a no-op when nothing matches the old defaults"
   const days = ["A", "B", "C", "D", "E", "F", "G"];
   assert.deepEqual(translateDefaultDayNames(days, DE_DAYS, EN_DAYS), days);
 });
+
+test("parseTimeToMinutes and parseTimeRangeToMinutes reject non-string input", () => {
+  assert.equal(parseTimeToMinutes(undefined), null);
+  assert.equal(parseTimeToMinutes(480), null);
+  assert.equal(parseTimeRangeToMinutes(null), null);
+  assert.equal(parseTimeRangeToMinutes(480), null);
+});
+
+test("parseTimeRangeToMinutes returns null when either side of the range is not a time", () => {
+  assert.equal(parseTimeRangeToMinutes("08:00–later"), null);
+  assert.equal(parseTimeRangeToMinutes("soon–09:00"), null);
+});
+
+test("computeSubRangeInset returns null when the rows cover no time span", () => {
+  assert.equal(computeSubRangeInset(["09:00–09:00"], "09:00", ""), null);
+  assert.equal(computeSubRangeInset(["10:00–11:00", "08:00–09:00"], "10:15", ""), null);
+});
+
+test("computeSubRangeInset falls back to the row bounds for a missing or invalid start/end", () => {
+  // Only an end time: the start sticks to the top of the rows.
+  assert.deepEqual(computeSubRangeInset(["08:00–09:00"], "", "08:30"), { topFraction: 0, bottomFraction: 0.5 });
+  // An unparseable start is treated like a missing one.
+  assert.deepEqual(computeSubRangeInset(["08:00–09:00"], "whenever", "08:45"), {
+    topFraction: 0,
+    bottomFraction: 0.25,
+  });
+});

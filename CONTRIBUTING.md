@@ -27,7 +27,12 @@ the DOM, call a pure function, write the result back to the DOM.
 
 - **Tested:** everything in `logic.js` / `io.js` / `store.js` / `i18n.js` — with Node's
   built-in test runner (`npm test`, no external test framework). Runs in CI on every
-  push/PR.
+  push/PR as `npm run test:coverage`, which fails if line, branch, or function coverage of
+  these four modules drops below **95%**, and uploads the report (`lcov.info`) to Codecov
+  (`codecov.yml` sets the same 95% target for the whole project and for each PR's changed
+  lines). Coverage only counts files the unit tests import, so the DOM-controller modules
+  below are deliberately not part of that number. New code in the four tested modules
+  comes with tests that keep it at or above 95%.
 - **Not unit-tested:** `app.js`, `render.js`, `selection.js`, `columns.js`. DOM controllers
   with click handlers, drag logic, and modal state would only be meaningfully unit-testable
   with considerable effort (jsdom or a headless browser as a test dependency), for a payoff
@@ -197,7 +202,7 @@ This repository's [AGENTS.md](AGENTS.md) makes these contribution rules availabl
 agents, while [CLAUDE.md](CLAUDE.md) points Claude Code at the same canonical instructions.
 
 `main` is the stable branch; changes land via a PR from a feature branch (`ci.yml` already
-runs `npm test` on every push *and* PR, so a PR's tests are visible before it merges).
+runs the unit tests (with coverage) on every push *and* PR, so a PR's tests are visible before it merges).
 
 GitHub Pages itself has no per-branch preview deployments — it only ever serves the one
 branch/environment configured for the repo (currently `main`, via `deploy-pages.yml`). To look
@@ -233,5 +238,6 @@ view can't show), that's what running it locally is for.
    — see "Test philosophy" for when that suite is (and isn't) the right call.
 6. Touched `style.css`? Bump the `?v=N` cache-buster on its `<link>` in `index.html` (see
    "Deploying" above).
-7. `npm test` (and `npm run test:e2e` if `e2e/` changed) green, then commit. CI (`ci.yml`) and
+7. `npm test` (and `npm run test:e2e` if `e2e/` changed) green, and `npm run test:coverage`
+   still at or above 95% if a tested module changed, then commit. CI (`ci.yml`) and
    deploy (`deploy-pages.yml`) run automatically on push to `main`.

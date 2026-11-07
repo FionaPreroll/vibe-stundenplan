@@ -1,0 +1,13 @@
+# Codecov settings. Coverage is measured on the modules `npm test` covers
+# (logic.js, io.js, store.js, i18n.js), see "Test philosophy" in CONTRIBUTING.md.
+coverage:
+  status:
+    project:
+      default:
+        target: 95%
+    patch:
+      default:
+        target: 95%
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: false

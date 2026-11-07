@@ -56,16 +56,9 @@ function applyDemoContent(plan, language) {
 }
 
 // Reads the single-plan format used before multi-plan support existed, so
-// upgrading the app doesn't wipe a plan someone already filled in.
-function migrateLegacyState(storage, language) {
-  let raw;
-  try {
-    raw = storage.getItem(LEGACY_KEY);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-
+// upgrading the app doesn't wipe a plan someone already filled in. Takes the
+// raw value loadStore already read, rather than reading storage again.
+function migrateLegacyState(raw, language) {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
@@ -146,7 +139,7 @@ export function loadStore(storage, defaultLanguage = DEFAULT_LANGUAGE) {
     legacyRaw = null;
   }
   const isFreshVisitor = !legacyRaw;
-  const legacyPlan = legacyRaw ? migrateLegacyState(storage, defaultLanguage) : null;
+  const legacyPlan = legacyRaw ? migrateLegacyState(legacyRaw, defaultLanguage) : null;
   const initialPlan = normalizePlan(legacyPlan || createEmptyPlan(undefined, defaultLanguage), defaultLanguage);
   if (isFreshVisitor) applyDemoContent(initialPlan, defaultLanguage);
 
